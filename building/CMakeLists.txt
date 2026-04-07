@@ -1,18 +1,35 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.3)
 project(CGDenoiser_Depedencies LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(ExternalProject)
 
+if (WIN32)
+  set(CMAKE_OBJECT_PATH_MAX 260)
+endif ()
+
 set(InstallDir ${CMAKE_SOURCE_DIR}/../lib)
 
+if (WIN32)
+    set(ISPC_URL https://github.com/ispc/ispc/releases/download/v1.29.1/ispc-v1.29.1-windows.zip)
+    set(ISPC_BIN ispc.exe)
+else()
+    set(ISPC_URL https://github.com/ispc/ispc/releases/download/v1.29.1/ispc-v1.29.1-linux.tar.gz)
+    set(ISPC_BIN ispc)
+endif()
+
 ExternalProject_Add(ISPC
-    URL https://github.com/ispc/ispc/releases/download/v1.29.1/ispc-v1.29.1-linux.tar.gz
+    URL ${ISPC_URL}
     BUILD_IN_SOURCE 1
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
-    INSTALL_COMMAND cp bin/ispc ${InstallDir}/bin
+    INSTALL_DIR ${InstallDir}
+    INSTALL_COMMAND
+        ${CMAKE_COMMAND} -E make_directory <INSTALL_DIR>/bin
+        COMMAND ${CMAKE_COMMAND} -E copy
+            <SOURCE_DIR>/bin/${ISPC_BIN}
+            <INSTALL_DIR>/bin/${ISPC_BIN}
 )
 set(CHAIN ISPC)
 
@@ -33,9 +50,11 @@ ExternalProject_Add(OptiXHeaders
     INSTALL_DIR ${InstallDir}
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
-    INSTALL_COMMAND ${CMAKE_COMMAND} -E copy_directory
-        <SOURCE_DIR>/include
-        <INSTALL_DIR>/include
+    INSTALL_COMMAND
+        ${CMAKE_COMMAND} -E make_directory <INSTALL_DIR>/include
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            <SOURCE_DIR>/include
+            <INSTALL_DIR>/include
     DEPENDS ${CHAIN}
 )
 set(CHAIN OptiXHeaders)
