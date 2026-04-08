@@ -26,12 +26,25 @@ class CGDenoiser : public PlanarIop {
     // --- Knob Variables ---
     int _engine; // 0 = OIDN, 1 = OptiX
 
+    int _filterType;
+    bool _srgb;
+    bool _hdr;
+    bool _setAffinity;
+    int _quality;
+    float _inputScale;
+    bool _cleanAux;
+    int _numThreads;
+    int _maxMemoryMB;
+    
+    bool _directional;
+
     // --- Internal State ---
     unsigned int m_filterW, m_filterH;
     ChannelSet m_defaultChannels;
     int m_defaultNumberOfChannels;
 
     size_t m_allocatedSize;
+    bool m_settingsDirty;
 
     // --- Layer Passes ---
     ChannelSet m_albedoLayer;
@@ -61,6 +74,7 @@ public:
     // --- Nuke Iop Virtual Functions ---
     void _validate(bool for_real) override;
     void knobs(Knob_Callback f) override;
+    int knob_changed(Knob* k) override;
     virtual void renderStripe(ImagePlane& plane) override;
     const char* Class() const override {return desc.name;}
     const char* node_help() const override { return "AI Denoiser using OIDN or OptiX"; }
