@@ -33,6 +33,18 @@ ExternalProject_Add(ISPC
 )
 set(CHAIN ISPC)
 
+ExternalProject_Add(TBB
+    GIT_REPOSITORY https://github.com/oneapi-src/oneTBB.git
+    GIT_TAG v2021.12.0
+    INSTALL_DIR ${InstallDir}
+    CMAKE_ARGS 
+      -DCMAKE_PREFIX_PATH=<INSTALL_DIR>
+      -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+      -DTBB_TEST=OFF
+    DEPENDS ${CHAIN}
+)
+set(CHAIN TBB)
+
 ExternalProject_Add(OpenImageDenoise
     GIT_REPOSITORY https://github.com/RenderKit/oidn.git
     GIT_TAG v2.4.1
@@ -40,6 +52,7 @@ ExternalProject_Add(OpenImageDenoise
     CMAKE_ARGS 
       -DCMAKE_PREFIX_PATH=<INSTALL_DIR>
       -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+      -DCMAKE_BUILD_TYPE=Release
     DEPENDS ${CHAIN}
 )
 set(CHAIN OpenImageDenoise)
