@@ -1,15 +1,8 @@
-cmake_minimum_required(VERSION 3.18)
-
-project(CGDenoiser)
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 # Define where the final plugin package will live
 set(PLUGIN_PACKAGE_DIR "${CMAKE_SOURCE_DIR}/plugins/CGDenoiser")
 
 # --- 1. Target Definition ---
-add_library(CGDenoiser SHARED denoiser.cpp)
+add_library(CGDenoiser SHARED denoiser.cpp oidnDenoiser.cpp)
 
 # --- 2. Shared Linker/Include Logic ---
 target_link_libraries(CGDenoiser PUBLIC 
@@ -17,11 +10,13 @@ target_link_libraries(CGDenoiser PUBLIC
     OpenImageDenoise::OpenImageDenoise
 )
 
-target_include_directories(CGDenoiser PRIVATE ${Nuke_INCLUDE_DIRS})
-
 if(USE_OPTIX)
-    target_link_libraries(CGDenoiser PUBLIC OptiX::OptiX CUDA::cudart)
+  add_library(optixDenoiser.cpp)
+    target_link_libraries(CGDenoiser PUBLIC CUDA::cudart CUDA::cuda_driver)
     target_include_directories(CGDenoiser PRIVATE ${OptiX_INCLUDE_DIR})
+    target_compile_definitions(CGDenoiser PRIVATE USE_OPTIX=1)
+else()
+  target_compile_definitions(CGDenoiser PRIVATE USE_OPTIX=0)
 endif()
 
 # --- 3. Platform Specifics ---
