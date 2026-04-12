@@ -146,9 +146,10 @@ void CGDenoiser::renderStripe(ImagePlane &plane) {
 
     for (int y = box.y(); y < box.t(); y++)
     {
+        size_t rowStart = ((size_t)(y - full.y()) * m_fullW) * 3;
         for (int x = box.x(); x < box.r(); x++)
         {
-            size_t idx = ((y - full.y()) * m_fullW + (x - full.x())) * 3;
+            size_t idx = rowStart + (x - full.x()) * 3;
 
             if (r >= 0) plane.writableAt(x, y, r) = m_color[idx + 0];
             if (g >= 0) plane.writableAt(x, y, g) = m_color[idx + 1];
@@ -170,8 +171,17 @@ void CGDenoiser::knobs(Knob_Callback f)
     Divider(f);
 
     // --- Main OptiX Settings
+#if USE_OPTIX
+    const char *denoiser_model_names[] = {"HDR", "AOV", "Temporal", nullptr};
+    Enumeration_knob(f, &m_optix.model, denoiser_model_names, "denoiser_model", "Denoiser Model");
+    Tooltip(f, "TODO");
 
-    
+    Float_knob(f, &m_optix.blend, "blend", "Blend");
+    Tooltip(f, "TODO");
+
+
+#endif
+
 
     // --- Main OIDN Settings
     const char *filter_names[] = {"Ray Tracing (RT)", "RT Lightmap", nullptr};
@@ -220,11 +230,9 @@ int CGDenoiser::knob_changed(Knob *k)
     knob("directional")->visible(useOIDN && !isRT);
 
     #if USE_OPTIX
-        bool useOptix = (m_engine == 1);
-
         // Example: if you add OptiX-specific knobs later
-        // knob("optix_blend")->visible(useOptix);
-        // knob("optix_hdr")->visible(useOptix);
+        knob("blend")->visible(!useOIDN);
+        knob("denoiser_model")->visible(!useOIDN);
     #endif
 
 
@@ -247,7 +255,16 @@ const char *CGDenoiser::input_label(int n, char *) const
 
 void CGDenoiser::_validate(bool for_real)
 {
+    m_dirty = true;
+    m_cached = false;
+
     copy_info();
+
+    for (int i = 0; i < 4; ++i) {
+        if (input(i)) {
+            input(i)->validate(for_real);
+        }
+    }
 }
 
 static Iop *build(Node *node) { return new CGDenoiser(node); }

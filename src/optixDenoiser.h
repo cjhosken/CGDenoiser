@@ -20,7 +20,6 @@ class OptiXDenoiser {
 
         int model; // 0 = HDR; 1 = LDR; 2 = TEMPORAL
         float blend;
-        float hdrIntensity; 
 
     private:
         void setupDevice();

@@ -103,10 +103,12 @@ void OIDNDenoiser::run(float* color, float* albedo, float* normal, int w, int h)
 
         if (albedo) {
             m_albedoBuffer = m_device.newBuffer(bufferSize);
-        }
+        } else {m_albedoBuffer = nullptr;}
 
         if (normal) {
             m_normalBuffer = m_device.newBuffer(bufferSize);
+        } else {
+            m_albedoBuffer = nullptr;
         }
 
         setupFilter();

@@ -5,7 +5,10 @@
 #include "optixDenoiser.h"
 
 
-OptiXDenoiser::OptiXDenoiser() {}
+OptiXDenoiser::OptiXDenoiser() {
+    model = 0;
+    blend = 0.0f;
+}
 
 OptiXDenoiser::~OptiXDenoiser() {cleanup();}
 
@@ -52,7 +55,11 @@ void OptiXDenoiser::setupDenoiser(int w, int h) {
     m_height = h;
 
     OptixDenoiserOptions options = {};
-    optixDenoiserCreate(m_context, OPTIX_DENOISER_MODEL_KIND_HDR, &options, &m_denoiser);
+    OptixDenoiserModelKind kind;
+    if (model == 0)      kind = OPTIX_DENOISER_MODEL_KIND_HDR;
+    else if (model == 1) kind = OPTIX_DENOISER_MODEL_KIND_AOV;
+    else                 kind = OPTIX_DENOISER_MODEL_KIND_TEMPORAL;
+    optixDenoiserCreate(m_context, kind, &options, &m_denoiser);
 
     OptixDenoiserSizes sizes;
     optixDenoiserComputeMemoryResources(m_denoiser, w, h, &sizes);
@@ -172,9 +179,18 @@ void OptiXDenoiser::run(float* color, float* albedo, float* normal, float* motio
         flowImage.format = OPTIX_PIXEL_FORMAT_FLOAT2;
     }
 
+    optixDenoiserComputeIntensity(
+        m_denoiser,
+        m_stream,
+        &inputImage,
+        m_dIntensity,
+        m_dScratch,
+        m_scratchSize
+    );
+
     OptixDenoiserParams params = {};
-    params.hdrIntensity = 0;
-    params.blendFactor = 0.0f;
+    params.hdrIntensity = m_dIntensity;
+    params.blendFactor = blend;
 
     OptixDenoiserLayer layer = {};
     layer.input  = inputImage;
