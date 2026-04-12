@@ -1,76 +1,87 @@
 cmake_minimum_required(VERSION 3.18)
 
+project(CGDenoiser)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Define where the final plugin package will live
 set(PLUGIN_PACKAGE_DIR "${CMAKE_SOURCE_DIR}/plugins/CGDenoiser")
 
-add_library(CGDenoiser SHARED 
-  denoiser.cpp
-)
+# --- 1. Target Definition ---
+add_library(CGDenoiser SHARED denoiser.cpp)
 
+# --- 2. Shared Linker/Include Logic ---
 target_link_libraries(CGDenoiser PUBLIC 
-  Nuke::NDK
-  OpenImageDenoise::OpenImageDenoise
+    Nuke::NDK
+    OpenImageDenoise::OpenImageDenoise
 )
 
-  target_include_directories(CGDenoiser PRIVATE
-    ${Nuke_INCLUDE_DIRS}
-  )
+target_include_directories(CGDenoiser PRIVATE ${Nuke_INCLUDE_DIRS})
 
 if(USE_OPTIX)
     target_link_libraries(CGDenoiser PUBLIC OptiX::OptiX CUDA::cudart)
-    target_include_directories(CGDenoiser PRIVATE
-      ${OptiX_INCLUDE_DIR}
-    )
+    target_include_directories(CGDenoiser PRIVATE ${OptiX_INCLUDE_DIR})
 endif()
 
-# --- Adjust naming based on Platform ---
+# --- 3. Platform Specifics ---
 if(WIN32)
-    # Windows needs .dll and NO "lib" prefix
-    set_target_properties(CGDenoiser PROPERTIES 
-        PREFIX "" 
-        SUFFIX ".dll"
-    )
-    # Add Windows-specific definitions for Nuke
+    set_target_properties(CGDenoiser PROPERTIES PREFIX "" SUFFIX ".dll")
+    
     target_compile_definitions(CGDenoiser PRIVATE 
         _CRT_SECURE_NO_WARNINGS
         _SCL_SECURE_NO_WARNINGS
     )
 else()
-    # Linux/Unix settings
+    # Linux Settings
     set_target_properties(CGDenoiser PROPERTIES 
         PREFIX ""
         SUFFIX ".so"
-        INSTALL_RPATH "$ORIGIN/../lib"
+        # $ORIGIN tells the plugin to look for OIDN/TBB in its own folder
+        INSTALL_RPATH "\$ORIGIN" 
     )
     
-    # Only use these on Linux (they will crash the Windows build)
+    # Nuke Core Linking: On Linux, we MUST explicitly link DDImage
+    # We use Nuke_ROOT to find the actual .so file
+    find_library(DDIMAGE_LIB DDImage PATHS $ENV{Nuke_ROOT} NO_DEFAULT_PATH)
+    target_link_libraries(CGDenoiser PUBLIC ${DDIMAGE_LIB})
+
     target_compile_definitions(CGDenoiser PRIVATE 
         FN_S_STD_ALLOCATOR
-        _GLIBCXX_USE_CXX11_ABI=0
         __STDC_CONSTANT_MACROS
+        LINUX                     # Tells Nuke headers we are on Linux
+        RESIZABLE_ARRAY           # Required for many DDImage headers
     )
 
     target_compile_options(CGDenoiser PRIVATE 
-      -fpermissive
-      -Wno-write-strings
-      -Wno-invalid-offsetof
-      # This might help bypass specific template-related strictness
-      -fno-strict-aliasing 
+        -fpermissive
+        -Wno-write-strings
+        -Wno-invalid-offsetof
+        -fno-strict-aliasing 
     )
+
+    # Force the linker to include DDImage even if it thinks it doesn't need it yet
+    target_link_options(CGDenoiser PRIVATE "-Wl,--no-as-needed")
 endif()
 
-install(TARGETS CGDenoiser
-  DESTINATION ${PLUGIN_PACKAGE_DIR}
+# --- 4. Installation / Bundling ---
+
+# Install the actual compiled plugin
+install(TARGETS CGDenoiser DESTINATION ${PLUGIN_PACKAGE_DIR})
+
+# Install supporting libraries (OIDN, TBB, etc.)
+# We flatten these into the same folder so $ORIGIN RPATH works
+install(
+    DIRECTORY "${CMAKE_SOURCE_DIR}/lib/bin/"
+    DESTINATION "${PLUGIN_PACKAGE_DIR}"
+    FILES_MATCHING 
+    PATTERN "*.dll"
+    PATTERN "*.so*"
+    PATTERN "*.dylib*"
 )
 
 install(
-  DIRECTORY "${CMAKE_SOURCE_DIR}/lib/bin/"
-  DESTINATION "${PLUGIN_PACKAGE_DIR}"
-  FILES_MATCHING 
-    PATTERN "*.dll"
-    PATTERN "*.lib"
-    PATTERN "*.so*"
-    PATTERN "*.dylib*"
+    DIRECTORY "${CMAKE_SOURCE_DIR}/lib/lib64/"
+    DESTINATION "${PLUGIN_PACKAGE_DIR}"
+    FILES_MATCHING PATTERN "*.so*"
 )

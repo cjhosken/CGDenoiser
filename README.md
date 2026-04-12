@@ -26,3 +26,8 @@ nuke.pluginAddPath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "CG
 ```
 
 Copy `scripts/menu.py` into `.nuke/menu.py`
+
+
+### Linux
+
+On linux, you'll need to update `LD_LIBRARY_PATH` before launching Nuke.
