@@ -1,6 +1,10 @@
 # CGDenoiser
 Nuke plugin for denoising CG renders with OIDN and OptiX.
 
+Supported Versions:
+
+**Nuke 17.0v1**
+
 place CGDenoiser in `.nuke/`
 
 ## Installation
