@@ -3,15 +3,47 @@ set(PLUGIN_PACKAGE_DIR "${CMAKE_SOURCE_DIR}/plugins/CGDenoiser")
 
 # --- 1. Target Definition ---
 
-if(USE_OPTIX)
-  add_library(CGDenoiser SHARED denoiser.cpp oidnDenoiser.cpp optixDenoiser.cpp)
+if(OPTIX)
+    add_library(CGDenoiser SHARED denoiser.cpp oidnDenoiser.cpp optixDenoiser.cpp)
     target_link_libraries(CGDenoiser PUBLIC CUDA::cudart CUDA::cuda_driver)
     target_include_directories(CGDenoiser PRIVATE ${OptiX_INCLUDE_DIR})
-    target_compile_definitions(CGDenoiser PRIVATE USE_OPTIX=1)
+    target_compile_definitions(CGDenoiser PRIVATE OPTIX=1)
 else()
-add_library(CGDenoiser SHARED denoiser.cpp oidnDenoiser.cpp)
-  target_compile_definitions(CGDenoiser PRIVATE USE_OPTIX=0)
+    add_library(CGDenoiser SHARED denoiser.cpp oidnDenoiser.cpp)
+    target_compile_definitions(CGDenoiser PRIVATE OPTIX=0)
 endif()
+
+if (OIDN_CUDA)
+    target_compile_definitions(CGDenoiser PRIVATE OIDN_CUDA=1)
+else()
+    target_compile_definitions(CGDenoiser PRIVATE OIDN_CUDA=0)
+endif()
+
+if (OIDN_SYCL)
+    target_compile_definitions(CGDenoiser PRIVATE OIDN_SYCL=1)
+else()
+    target_compile_definitions(CGDenoiser PRIVATE OIDN-SYCL=0)
+endif()
+
+if (OIDN_HIP)
+    target_compile_definitions(CGDenoiser PRIVATE OIDN_HIP=1)
+else()
+    target_compile_definitions(CGDenoiser PRIVATE OIDN_HIP=0)
+endif()
+
+if (OIDN_METAL)
+    target_compile_definitions(CGDenoiser PRIVATE OIDN_METAL=1)
+else()
+    target_compile_definitions(CGDenoiser PRIVATE OIDN_METAL=0)
+endif()
+
+if (OIDN_CPU)
+    target_compile_definitions(CGDenoiser PRIVATE OIDN_CPU=1)
+else()
+    target_compile_definitions(CGDenoiser PRIVATE OIDN_CPU=0)
+endif()
+
+
 
 
 
@@ -22,8 +54,6 @@ target_link_libraries(CGDenoiser PUBLIC
     Nuke::NDK
     OpenImageDenoise::OpenImageDenoise
 )
-
-
 
 # --- 3. Platform Specifics ---
 if(WIN32)

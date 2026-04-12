@@ -9,7 +9,7 @@ CGDenoiser::CGDenoiser(Node *node) : PlanarIop(node)
 
     m_oidn = OIDNDenoiser();
 
-    #if USE_OPTIX
+    #if OPTIX
         m_optix = OptiXDenoiser();
     #endif
 }
@@ -122,7 +122,7 @@ void CGDenoiser::renderStripe(ImagePlane &plane) {
                     m_deviceDirty
                 );
             }
-#if USE_OPTIX
+#if OPTIX
             else if (m_engine == 1)
             {
                 m_optix.run(
@@ -167,7 +167,7 @@ void CGDenoiser::knobs(Knob_Callback f)
 {
     const char *engine_names[] = {
         "OpenImageDenoise (OIDN)",
-#if USE_OPTIX
+#if OPTIX
         "NVIDIA OptiX",
 #endif
         nullptr};
@@ -176,7 +176,7 @@ void CGDenoiser::knobs(Knob_Callback f)
     Divider(f);
 
     // --- Main OptiX Settings
-#if USE_OPTIX
+#if OPTIX
     const char *denoiser_model_names[] = {"HDR", "AOV", "Temporal", nullptr};
     Enumeration_knob(f, &m_optix.model, denoiser_model_names, "denoiser_model", "Denoiser Model");
     Tooltip(f, "TODO");
@@ -189,14 +189,11 @@ void CGDenoiser::knobs(Knob_Callback f)
 
 
     // --- Main OIDN Settings
-    const char *device_names[] = {"Default", "CPU", "CUDA", "HIP", "Metal", "SYCL", nullptr};
-    Enumeration_knob(f, &m_oidn.device_type, device_names, "device_type", "Device Type");
+    Enumeration_knob(f, &m_oidn.device_type, OIDN_Device, "device_type", "Device Type");
 
-    const char *filter_names[] = {"Ray Tracing (RT)", "RT Lightmap", nullptr};
-    Enumeration_knob(f, &m_oidn.filter_type, filter_names, "filter_type", "Filter Type");
+    Enumeration_knob(f, &m_oidn.filter_type, OIDN_Filter, "filter_type", "Filter Type");
 
-    const char *quality_names[] = {"Default", "Fast", "Balanced", "High", nullptr};
-    Enumeration_knob(f, &m_oidn.filter_quality, quality_names, "quality", "Quality");
+    Enumeration_knob(f, &m_oidn.filter_quality, OIDN_Quality, "quality", "Quality");
     Tooltip(f, "Fast: lowest quality. Balanced: medium. High: best quality, slowest.");
 
     Bool_knob(f, &m_oidn.filter_hdr, "hdr", "HDR");
@@ -238,7 +235,7 @@ int CGDenoiser::knob_changed(Knob *k)
     knob("clean_aux")->visible(useOIDN);
     knob("directional")->visible(useOIDN && !isRT);
 
-    #if USE_OPTIX
+    #if OPTIX
         // Example: if you add OptiX-specific knobs later
         knob("blend")->visible(!useOIDN);
         knob("denoiser_model")->visible(!useOIDN);

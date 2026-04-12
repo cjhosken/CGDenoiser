@@ -8,7 +8,7 @@
 
 #include "oidnDenoiser.h"
 
-#if USE_OPTIX
+#if OPTIX
 #include "optixDenoiser.h"
 #endif
 
@@ -56,7 +56,7 @@ private:
 
     OIDNDenoiser m_oidn;
 
-#if USE_OPTIX
+#if OPTIX
     OptiXDenoiser m_optix;
 #endif
 };

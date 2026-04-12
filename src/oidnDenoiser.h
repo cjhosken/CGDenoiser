@@ -9,16 +9,31 @@ using namespace DD::Image;
 
 static const char* const OIDN_Device[] = {
     "Default", 
+
+    #if OIDN_CPU
     "CPU", 
-    "CUDA (NVIDIA)", 
-    "HIP (AMD)", 
+    #endif
+
+    #if OIDN_CUDA
+    "CUDA (NVIDIA)",
+    #endif
+    
+    #if OIDN_HIP
+    "HIP (AMD)",
+    #endif
+
+    #if OIDN_METAL
     "Metal (Apple)", 
+    #endif
+
+    #if OIDN_SYCL
     "SYCL (Intel)", 
+    #endif
     0
 };
 
 static const char* const OIDN_Filter[] = {"RT", "RTLightmap", 0};
-static const char* const OIDN_Quality[] = {"default", "fast", "balanced", "high", 0};
+static const char* const OIDN_Quality[] = {"Default", "Fast", "Balanced", "High", 0};
 
 class OIDNDenoiser {
     public:

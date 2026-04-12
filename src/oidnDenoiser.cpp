@@ -5,6 +5,7 @@ OIDNDenoiser::OIDNDenoiser() {
     m_height = 0;
 
     m_filterDirty = true;
+    device_type = 0;
 
     filter_type = 0;
     filter_hdr = false;
@@ -26,11 +27,26 @@ void OIDNDenoiser::setupDevice() {
 
     oidn::DeviceType device_types[] = {
         oidn::DeviceType::Default,
+
+        #if OIDN_CPU
         oidn::DeviceType::CPU,
+        #endif
+
+        #if OIDN_CUDA
         oidn::DeviceType::CUDA,
+        #endif
+
+        #if OIDN_HIP
         oidn::DeviceType::HIP,
+        #endif
+
+        #if OIDN_METAL
         oidn::DeviceType::Metal,
+        #endif
+
+        #if OIDN_SYCL
         oidn::DeviceType::SYCL
+        #endif
     };
 
     m_device = nullptr;
@@ -48,7 +64,7 @@ void OIDNDenoiser::setupDevice() {
     {
         std::cerr << "[OIDN Error] Failed to init device: " << e.what() << std::endl;
         std::cerr << "[OIDN] Falling back to CPU..." << std::endl;
-        m_device = oidn::newDevice(oidn::DeviceType::CPU);
+        m_device = oidn::newDevice(oidn::DeviceType::Default);
         m_device.commit();
     }
     
@@ -86,7 +102,14 @@ void OIDNDenoiser::setupFilter() {
     m_filter.set("inputScale", std::max(0.01f, filter_inputScale));
     m_filter.set("cleanAux", filter_cleanAux);
 
-    m_filter.set("quality", OIDN_Quality[filter_quality]);
+    static const oidn::Quality quality[] = {
+        oidn::Quality::Default,
+        oidn::Quality::Fast,
+        oidn::Quality::Balanced,
+        oidn::Quality::High
+    };
+
+    m_filter.set("quality", quality[filter_quality]);
 
     std::cout << "[OIDN] Filter Created!" << std::endl;
 
