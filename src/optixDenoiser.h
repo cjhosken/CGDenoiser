@@ -18,6 +18,10 @@ class OptiXDenoiser {
 
         void run(float* color, float* albedo, float* normal, float* motion, int w, int h);
 
+        int model; // 0 = HDR; 1 = LDR; 2 = TEMPORAL
+        float blend;
+        float hdrIntensity; 
+
     private:
         void setupDevice();
         void setupDenoiser(int w, int h);

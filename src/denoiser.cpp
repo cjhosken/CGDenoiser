@@ -169,6 +169,10 @@ void CGDenoiser::knobs(Knob_Callback f)
     Tooltip(f, "Select the denoising backend.");
     Divider(f);
 
+    // --- Main OptiX Settings
+
+    
+
     // --- Main OIDN Settings
     const char *filter_names[] = {"Ray Tracing (RT)", "RT Lightmap", nullptr};
     Enumeration_knob(f, &m_oidn.filter_type, filter_names, "filter_type", "Filter Type");
@@ -203,6 +207,26 @@ int CGDenoiser::knob_changed(Knob *k)
     {
         m_deviceDirty = true;
     }
+
+    bool useOIDN = (m_engine == 0);
+    bool isRT = (m_oidn.filter_type == 0);
+
+    knob("filter_type")->visible(useOIDN);
+    knob("quality")->visible(useOIDN);
+    knob("hdr")->visible(useOIDN && isRT);
+    knob("srgb")->visible(useOIDN && isRT);
+    knob("input_scale")->visible(useOIDN);
+    knob("clean_aux")->visible(useOIDN);
+    knob("directional")->visible(useOIDN && !isRT);
+
+    #if USE_OPTIX
+        bool useOptix = (m_engine == 1);
+
+        // Example: if you add OptiX-specific knobs later
+        // knob("optix_blend")->visible(useOptix);
+        // knob("optix_hdr")->visible(useOptix);
+    #endif
+
 
     std::cout << "[CGDenoiser] Knob Changed" << std::endl;
 
