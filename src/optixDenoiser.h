@@ -16,7 +16,7 @@ class OptiXDenoiser {
         OptiXDenoiser();
         ~OptiXDenoiser();
 
-        void render(ImagePlane &plane, ImagePlane &inputPlane, Box box);
+        void run(float* data, int w, int h);
 
     private:
         void setupDevice();

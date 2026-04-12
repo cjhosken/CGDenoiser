@@ -10,7 +10,11 @@ OptiXDenoiser::OptiXDenoiser() {}
 OptiXDenoiser::~OptiXDenoiser() {cleanup();}
 
 void OptiXDenoiser::setupDevice() {
+    std::cout << "[OptiX] Setting up Device..." << std::endl;
+
     if (m_initialized) return;
+
+    std::cout << "[OptiX] Making Context..." << std::endl;
 
     cudaFree(0);
     cuCtxGetCurrent(&m_cuCtx);
@@ -21,6 +25,8 @@ void OptiXDenoiser::setupDevice() {
 
     cuStreamCreate(&m_stream, CU_STREAM_DEFAULT);
 
+    std::cout << "[OptiX] Context Created! Initialising OptiX..." << std::endl;
+
     optixInit();
     OptixDeviceContextOptions options = {};
     options.logCallbackLevel = 4;
@@ -28,10 +34,14 @@ void OptiXDenoiser::setupDevice() {
 
     cudaMalloc((void**)&m_dIntensity, sizeof(float));
     m_initialized = true;
+    std::cout << "[OptiX] Device Created!" << std::endl;
+
 }
 
 
 void OptiXDenoiser::setupDenoiser(int w, int h) {
+    std::cout << "[OptiX] Setting up Denoiser..." << std::endl;
+
     cuCtxSetCurrent(m_cuCtx);
 
     if (m_denoiser && w == m_width && h == m_height) return;
@@ -60,56 +70,55 @@ void OptiXDenoiser::setupDenoiser(int w, int h) {
                     sizes.stateSizeInBytes, m_dScratch,
                     sizes.withoutOverlapScratchSizeInBytes
     );
+
+    std::cout << "[OptiX] Denoiser Created!" << std::endl;
+
 }
 
-void OptiXDenoiser::render(ImagePlane &plane, ImagePlane &inputPlane, Box box)
+void OptiXDenoiser::run(float* data, int w, int h)
 {
-    std::cerr << "Running OptiX\n";
+    std::cout << "[OptiX] Rendering..." << std::endl;
 
     cuCtxSetCurrent(m_cuCtx);
 
-    int W = box.w();
-    int H = box.h();
-
     setupDevice();
-    setupDenoiser(W, H);
+    setupDenoiser(w, h);
+
+    std::cout << "[OptiX] Creating Buffers and Loading Data..." << std::endl;
 
     size_t pixelSize = sizeof(float) * 3;
-    size_t bufferSize = W * H * pixelSize;
+    size_t bufferSize = (size_t)w * h * pixelSize;
 
-    CUdeviceptr d_input, d_output;
+    CUdeviceptr d_input = 0;
+    CUdeviceptr d_output = 0;
+
     cudaMalloc((void**)&d_input, bufferSize);
     cudaMalloc((void**)&d_output, bufferSize);
 
-    std::vector<float> hostInput(W * H * 3);
+    cudaMemcpy((void*)d_input, data, bufferSize, cudaMemcpyHostToDevice);
 
-    for (int y = 0; y < H; y++)
-    {
-        for (int x = 0; x < W; x++)
-        {
-            size_t idx = (y * W + x) * 3;
+    std::cout << "[OptiX] Got Data! Prepping Denoiser..." << std::endl;
 
-            hostInput[idx + 0] = inputPlane.at(x, y, 0);
-            hostInput[idx + 1] = inputPlane.at(x, y, 1);
-            hostInput[idx + 2] = inputPlane.at(x, y, 2);
-        }
-    }
-
-    cudaMemcpy((void*)d_input, hostInput.data(), bufferSize, cudaMemcpyHostToDevice);
+    
 
     OptixImage2D inputImage = {};
     inputImage.data = d_input;
-    inputImage.width = W;
-    inputImage.height = H;
-    inputImage.rowStrideInBytes = W * pixelSize;
+    inputImage.width = w;
+    inputImage.height = h;
+    inputImage.rowStrideInBytes = w * pixelSize;
     inputImage.pixelStrideInBytes = pixelSize;
     inputImage.format = OPTIX_PIXEL_FORMAT_FLOAT3;
 
-    OptixImage2D outputImage = inputImage;
+    OptixImage2D outputImage = {};
     outputImage.data = d_output;
+    outputImage.width = w;
+    outputImage.height = h;
+    outputImage.rowStrideInBytes = w * pixelSize;
+    outputImage.pixelStrideInBytes = pixelSize;
+    outputImage.format = OPTIX_PIXEL_FORMAT_FLOAT3;
 
     OptixDenoiserParams params = {};
-    params.hdrIntensity = m_dIntensity; // Valid GPU address
+    params.hdrIntensity = 0;
     params.blendFactor = 0.0f;
 
     OptixDenoiserLayer layer = {};
@@ -117,6 +126,8 @@ void OptiXDenoiser::render(ImagePlane &plane, ImagePlane &inputPlane, Box box)
     layer.output = outputImage;
 
     OptixDenoiserGuideLayer guideLayer = {};
+
+    std::cout << "[OptiX] Denoiser Prepped! Running Denoiser..." << std::endl;
 
     optixDenoiserInvoke(
         m_denoiser,
@@ -134,35 +145,20 @@ void OptiXDenoiser::render(ImagePlane &plane, ImagePlane &inputPlane, Box box)
 
     cudaDeviceSynchronize();
 
-    std::vector<float> hostOutput(W * H * 3);
-    cudaMemcpy(hostOutput.data(), (void*)d_output, bufferSize, cudaMemcpyDeviceToHost);
+    std::cout << "[OptiX] Denoised! Writing Data..." << std::endl;
 
-    // --- Write back to Nuke ---
-    plane.writable();
-
-    int r = plane.chanNo(DD::Image::Chan_Red);
-    int g = plane.chanNo(DD::Image::Chan_Green);
-    int b = plane.chanNo(DD::Image::Chan_Blue);
-
-    for (int y = 0; y < H; y++)
-    {
-        for (int x = 0; x < W; x++)
-        {
-            size_t idx = (y * W + x) * 3;
-
-            plane.writableAt(x, y, r) = hostOutput[idx + 0];
-            plane.writableAt(x, y, g) = hostOutput[idx + 1];
-            plane.writableAt(x, y, b) = hostOutput[idx + 2];
-        }
-    }
+    cudaMemcpy(data, (void*)d_output, bufferSize, cudaMemcpyDeviceToHost);
 
     cudaFree((void*)d_input);
     cudaFree((void*)d_output);
 
-    std::cerr << "Running OptiX\n";
+    std::cout << "[OptiX] Finished!" << std::endl;
+
 }
 
 void OptiXDenoiser::cleanup() {
+    std::cout << "[OptiX] Cleaning up..." << std::endl;
+
     // 1. Destroy OptiX specific objects
     if (m_denoiser) {
         optixDenoiserDestroy(m_denoiser);
@@ -196,4 +192,7 @@ void OptiXDenoiser::cleanup() {
 
     // Reset initialization flag
     m_initialized = false;
+
+    std::cout << "[OptiX] Cleaning Finished!" << std::endl;
+
 }

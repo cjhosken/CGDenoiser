@@ -1,6 +1,8 @@
 #ifndef CGDENOISER_H
 #define CGDENOISER_H
 
+#include <mutex>
+
 #include "DDImage/PlanarIop.h"
 #include "DDImage/Knobs.h"
 
@@ -32,7 +34,15 @@ public:
 
 private:
     // State tracking
-    int m_filterW, m_filterH;
+   std::vector<float> m_cachedOutput;
+    int m_fullW = 0;
+    int m_fullH = 0;
+
+    bool m_cached = false;
+    bool m_dirty = true;
+
+    std::mutex m_mutex;
+
     bool m_deviceDirty;
     bool m_filterDirty;
 

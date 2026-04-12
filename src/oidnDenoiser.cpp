@@ -21,15 +21,20 @@ OIDNDenoiser::OIDNDenoiser() {
 OIDNDenoiser::~OIDNDenoiser() {}
 
 void OIDNDenoiser::setupDevice() {
+    std::cout << "[OIDN] Setting up Device..." << std::endl;
+
     m_device = nullptr;
     m_device = oidn::newDevice(oidn::DeviceType::CPU);
     if (m_device)
     {
         m_device.commit();
     }
+    std::cout << "[OIDN] Device Created!" << std::endl;
 }
 
 void OIDNDenoiser::setupFilter() {
+    std::cout << "[OIDN] Setting up Filter..." << std::endl;
+
     m_filter = m_device.newFilter(OIDN_Filter[filter_type]);
 
     m_filter.setImage("color", m_colorBuffer, oidn::Format::Float3, m_width, m_height);
@@ -49,15 +54,19 @@ void OIDNDenoiser::setupFilter() {
     m_filter.set("cleanAux", filter_cleanAux);
 
     m_filter.set("quality", OIDN_Quality[filter_quality]);
+
+    std::cout << "[OIDN] Filter Created!" << std::endl;
+
     m_filter.commit();
+
+    std::cout << "[OIDN] Filter Comitted!" << std::endl;
+
 }
 
 
-void OIDNDenoiser::render(ImagePlane &plane, ImagePlane &inputPlane, Box box)
+void OIDNDenoiser::run(float* data, int w, int h)
 {
-    int W = box.w();
-    int H = box.h();
-
+    std::cout << "[OIDN] Rendering..." << std::endl;
 
     if (!m_device || m_deviceDirty)
     {
@@ -69,75 +78,39 @@ void OIDNDenoiser::render(ImagePlane &plane, ImagePlane &inputPlane, Box box)
     if (!m_device)
         return;
 
-    bool dimsChanged = (W != m_width || H != m_height);
+    bool dimsChanged = (w != m_width || h != m_height);
     if (dimsChanged || m_filterDirty || !m_filter)
     {
-        m_width = W;
-        m_height = H;
+        std::cout << "[OIDN] Dims Changed! Updating Buffers..." << std::endl;
 
-        m_filter = nullptr;
-        m_colorBuffer = nullptr;
-        m_outputBuffer = nullptr;
+        m_width = w;
+        m_height = h;
 
         size_t bufferSize = static_cast<size_t>(m_width) * m_height * 3 * sizeof(float);
 
         m_colorBuffer = m_device.newBuffer(bufferSize);
         m_outputBuffer = m_device.newBuffer(bufferSize);
 
-        if (!m_filter || m_filterDirty)
-        {
-            setupFilter();
-            m_filterDirty = false;
-        }
+        setupFilter();
+        m_filterDirty = false;
     }
+
+    std::cout << "[OIDN] Getting Data..." << std::endl;
 
     float *colorPtr = (float *)m_colorBuffer.getData();
-    if (!colorPtr)
+    float* outputPtr = (float*)m_outputBuffer.getData();
+
+    if (!colorPtr || !outputPtr)
         return;
 
-    for (int y = box.y(); y < box.t(); y++)
-    {
-        // OIDN expects top-to-bottom.
-        // We map Nuke's bottom row to OIDN's top row.
-        size_t oidnY = (size_t)(box.t() - 1 - y);
+    memcpy(colorPtr, data, (size_t)w * h * 3 * sizeof(float));
 
-        for (int x = box.x(); x < box.r(); x++)
-        {
-            size_t lx = (size_t)(x - box.x());
-            size_t idx = (oidnY * W + lx) * 3;
-
-            colorPtr[idx + 0] = inputPlane.at(x, y, 0);
-            colorPtr[idx + 1] = inputPlane.at(x, y, 1);
-            colorPtr[idx + 2] = inputPlane.at(x, y, 2);
-        }
-    }
+    std::cout << "[OIDN] Data Retrieved! Executing Denoiser..." << std::endl;
 
     m_filter.execute();
 
-    plane.writable();
-    float *denoisedPtr = (float *)m_outputBuffer.getData();
-    if (!denoisedPtr)
-        return;
+    std::cout << "[OIDN] Denoised! Writing Data..." << std::endl;
 
-    DD::Image::Channel rgb[3] = {DD::Image::Chan_Red, DD::Image::Chan_Green, DD::Image::Chan_Blue};
-    for (int z = 0; z < 3; z++) // Hardcode to 3 since OIDN buffer is Float3
-    {
-        int pIdx = plane.chanNo(rgb[z]);
-        if (pIdx < 0)
-            continue;
-
-        for (int y = box.y(); y < box.t(); y++)
-        {
-            // Reverse the Y mapping again to get back to Nuke space
-            size_t oidnY = (size_t)(box.t() - 1 - y);
-
-            for (int x = box.x(); x < box.r(); x++)
-            {
-                size_t lx = (size_t)(x - box.x());
-                size_t oidnIdx = (oidnY * W + lx) * 3 + z;
-
-                plane.writableAt(x, y, pIdx) = denoisedPtr[oidnIdx];
-            }
-        }
-    }
+    memcpy(data, outputPtr, (size_t)w * h * 3 * sizeof(float));
+    std::cout << "[OIDN] Finished!" << std::endl;
 }

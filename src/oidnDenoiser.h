@@ -18,7 +18,7 @@ class OIDNDenoiser {
         void setupDevice();
         void setupFilter();
 
-        void render(ImagePlane &plane, ImagePlane &inputPlane, Box box);
+        void run(float* data, int w, int h);
 
         int filter_type; // 0 = RT, 1 = RTLightmap
 
