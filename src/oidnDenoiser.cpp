@@ -22,12 +22,36 @@ OIDNDenoiser::~OIDNDenoiser() {}
 void OIDNDenoiser::setupDevice() {
     std::cout << "[OIDN] Setting up Device..." << std::endl;
 
+    oidn::DeviceType type = oidn::DeviceType::Default;
+
+    oidn::DeviceType device_types[] = {
+        oidn::DeviceType::Default,
+        oidn::DeviceType::CPU,
+        oidn::DeviceType::CUDA,
+        oidn::DeviceType::HIP,
+        oidn::DeviceType::Metal,
+        oidn::DeviceType::SYCL
+    };
+
     m_device = nullptr;
-    m_device = oidn::newDevice(oidn::DeviceType::CPU);
-    if (m_device)
+
+    type = device_types[device_type];
+    try
     {
+        m_device = oidn::newDevice(type);
+        if (m_device)
+        {
+            m_device.commit();
+        }
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << "[OIDN Error] Failed to init device: " << e.what() << std::endl;
+        std::cerr << "[OIDN] Falling back to CPU..." << std::endl;
+        m_device = oidn::newDevice(oidn::DeviceType::CPU);
         m_device.commit();
     }
+    
     std::cout << "[OIDN] Device Created!" << std::endl;
 }
 

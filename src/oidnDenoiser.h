@@ -7,6 +7,16 @@
 
 using namespace DD::Image;
 
+static const char* const OIDN_Device[] = {
+    "Default", 
+    "CPU", 
+    "CUDA (NVIDIA)", 
+    "HIP (AMD)", 
+    "Metal (Apple)", 
+    "SYCL (Intel)", 
+    0
+};
+
 static const char* const OIDN_Filter[] = {"RT", "RTLightmap", 0};
 static const char* const OIDN_Quality[] = {"default", "fast", "balanced", "high", 0};
 
@@ -20,6 +30,7 @@ class OIDNDenoiser {
 
         void run(float* color, float* albedo, float* normal, int w, int h, bool dirty);
 
+        int device_type; // 0=Default, 1=CPU, 2=CUDA, 3=HIP, 4=Metal, 5=SYCL
         int filter_type; // 0 = RT, 1 = RTLightmap
 
         bool filter_hdr;

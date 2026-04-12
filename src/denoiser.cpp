@@ -189,10 +189,13 @@ void CGDenoiser::knobs(Knob_Callback f)
 
 
     // --- Main OIDN Settings
+    const char *device_names[] = {"Default", "CPU", "CUDA", "HIP", "Metal", "SYCL", nullptr};
+    Enumeration_knob(f, &m_oidn.device_type, device_names, "device_type", "Device Type");
+
     const char *filter_names[] = {"Ray Tracing (RT)", "RT Lightmap", nullptr};
     Enumeration_knob(f, &m_oidn.filter_type, filter_names, "filter_type", "Filter Type");
 
-    const char *quality_names[] = {"Fast", "Balanced", "High", nullptr};
+    const char *quality_names[] = {"Default", "Fast", "Balanced", "High", nullptr};
     Enumeration_knob(f, &m_oidn.filter_quality, quality_names, "quality", "Quality");
     Tooltip(f, "Fast: lowest quality. Balanced: medium. High: best quality, slowest.");
 
@@ -218,7 +221,7 @@ int CGDenoiser::knob_changed(Knob *k)
 {
     m_filterDirty = true;
 
-    if (k->is("engine") || k->is("denoiser_model"))
+    if (k->is("engine") || k->is("denoiser_model") || k->is("device_type"))
     {
         m_deviceDirty = true;
     }
@@ -226,6 +229,7 @@ int CGDenoiser::knob_changed(Knob *k)
     bool useOIDN = (m_engine == 0);
     bool isRT = (m_oidn.filter_type == 0);
 
+    knob("device_type")->visible(useOIDN);
     knob("filter_type")->visible(useOIDN);
     knob("quality")->visible(useOIDN);
     knob("hdr")->visible(useOIDN && isRT);
