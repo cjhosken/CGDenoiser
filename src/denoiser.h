@@ -23,72 +23,29 @@ class CGDenoiser : public PlanarIop {
     oidn::BufferRef m_albedoBuffer;
     oidn::BufferRef m_normalBuffer;
 
+    // State tracking
+    int m_filterW, m_filterH;
+    bool m_deviceDirty;
+    bool m_filterDirty;
+
     // --- Knob Variables ---
     int _engine; // 0 = OIDN, 1 = OptiX
 
-    int _filterType;
-    bool _srgb;
-    bool _hdr;
-    bool _setAffinity;
-    int _quality;
-    float _inputScale;
-    bool _cleanAux;
-    int _numThreads;
-    int _maxMemoryMB;
-    
-    bool _directional;
-
-    // --- Internal State ---
-    unsigned int m_filterW, m_filterH;
-    ChannelSet m_defaultChannels;
-    int m_defaultNumberOfChannels;
-
-    size_t m_allocatedSize;
-    bool m_settingsDirty;
-
-    // --- Layer Passes ---
-    ChannelSet m_albedoLayer;
-    ChannelSet m_normalLayer;
+    int m_defaultChannels;
+ 
 
 public:
     // Constructor
     CGDenoiser(Node* node);
-
-    // Destructor
-    virtual ~CGDenoiser() {};
-
-    bool useStripes() const override { return false; };
-    bool renderFullPlanes() const override { return true; };
-
-    int minimum_inputs() const override { return 1; }
-    int maximum_inputs() const override { return 3; }
-    const char* input_label(int input, char* buffer) const override {
-    switch (input) {
-        case 0: return "color";
-        case 1: return "albedo";
-        case 2: return "normal";
-        default: return nullptr;
-    }
-}
-
-    // --- Nuke Iop Virtual Functions ---
+    ~CGDenoiser() override;
     void _validate(bool for_real) override;
-    void knobs(Knob_Callback f) override;
-    int knob_changed(Knob* k) override;
-    virtual void renderStripe(ImagePlane& plane) override;
-    const char* Class() const override {return desc.name;}
-    const char* node_help() const override { return "AI Denoiser using OIDN or OptiX"; }
+    void renderStripe(ImagePlane& plane) override;
+
+    void setupDevice();
 
     static const Iop::Description desc;
-
-    // --- Internal Logic ---
-    void setupDevice();
-    void setupFilter(bool hasAlbedo, bool hasNormal);
-
-    void runOIDN();
-#ifdef USE_OPTIX
-    void runOptiX();
-#endif
+    const char* Class() const override {return desc.name;}
+    const char* node_help() const override { return "AI Denoiser using OIDN or OptiX"; }
 };
 
 #endif // CGDENOISER_H
