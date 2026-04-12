@@ -49,11 +49,15 @@ else()
     target_compile_definitions(CGDenoiser PRIVATE 
         FN_S_STD_ALLOCATOR
         _GLIBCXX_USE_CXX11_ABI=0
+        __STDC_CONSTANT_MACROS
     )
 
     target_compile_options(CGDenoiser PRIVATE 
       -fpermissive
-      -Wno-error=range-loop-construct
+      -Wno-write-strings
+      -Wno-invalid-offsetof
+      # This might help bypass specific template-related strictness
+      -fno-strict-aliasing 
     )
 endif()
 
