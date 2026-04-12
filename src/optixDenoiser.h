@@ -6,8 +6,6 @@
 
 #include <optix.h>
 #include <optix_stubs.h>
-#include <cuda_runtime.h>
-#include <optix_function_table_definition.h>
 
 
 using namespace DD::Image;
@@ -21,6 +19,11 @@ class OptiXDenoiser {
         void render(ImagePlane &plane, ImagePlane &inputPlane, Box box);
 
     private:
+        void setupDevice();
+        void setupDenoiser(int w, int h);
+        void cleanup();
+
+
         int m_width;
         int m_height;
 
@@ -28,10 +31,20 @@ class OptiXDenoiser {
         int m_deviceDirty;
         int m_filterDirty;
 
-        CUcontext cuCtx = 0;
-        CUstream m_stream = 0;
-        OptixDeviceContext m_optixContext = nullptr;
+        OptixDeviceContext m_context = nullptr;
         OptixDenoiser m_denoiser = nullptr;
+        CUstream m_stream = 0;
+        CUcontext m_cuCtx = nullptr;
+
+        CUdeviceptr m_dState = 0;
+        CUdeviceptr m_dScratch = 0;
+        CUdeviceptr m_dIntensity = 0;
+
+        int m_stateSize;
+        int m_scratchSize;
+
+        bool m_initialized = false;
+
         
 }; // OPTIXDENOISER_H
 

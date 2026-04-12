@@ -2,7 +2,20 @@
 set(PLUGIN_PACKAGE_DIR "${CMAKE_SOURCE_DIR}/plugins/CGDenoiser")
 
 # --- 1. Target Definition ---
+
+if(USE_OPTIX)
+  add_library(CGDenoiser SHARED denoiser.cpp oidnDenoiser.cpp optixDenoiser.cpp)
+    target_link_libraries(CGDenoiser PUBLIC CUDA::cudart CUDA::cuda_driver)
+    target_include_directories(CGDenoiser PRIVATE ${OptiX_INCLUDE_DIR})
+    target_compile_definitions(CGDenoiser PRIVATE USE_OPTIX=1)
+else()
 add_library(CGDenoiser SHARED denoiser.cpp oidnDenoiser.cpp)
+  target_compile_definitions(CGDenoiser PRIVATE USE_OPTIX=0)
+endif()
+
+
+
+
 
 # --- 2. Shared Linker/Include Logic ---
 target_link_libraries(CGDenoiser PUBLIC 
@@ -10,14 +23,7 @@ target_link_libraries(CGDenoiser PUBLIC
     OpenImageDenoise::OpenImageDenoise
 )
 
-if(USE_OPTIX)
-  add_library(optixDenoiser.cpp)
-    target_link_libraries(CGDenoiser PUBLIC CUDA::cudart CUDA::cuda_driver)
-    target_include_directories(CGDenoiser PRIVATE ${OptiX_INCLUDE_DIR})
-    target_compile_definitions(CGDenoiser PRIVATE USE_OPTIX=1)
-else()
-  target_compile_definitions(CGDenoiser PRIVATE USE_OPTIX=0)
-endif()
+
 
 # --- 3. Platform Specifics ---
 if(WIN32)

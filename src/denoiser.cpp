@@ -9,7 +9,7 @@ CGDenoiser::CGDenoiser(Node *node) : PlanarIop(node)
     m_oidn = OIDNDenoiser();
 
     #if USE_OPTIX
-        m_optix = OptixDenoiser();
+        m_optix = OptiXDenoiser();
     #endif
 }
 
