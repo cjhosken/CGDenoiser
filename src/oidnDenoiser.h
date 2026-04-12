@@ -18,7 +18,7 @@ class OIDNDenoiser {
         void setupDevice();
         void setupFilter();
 
-        void run(float* color, float* albedo, float* normal, int w, int h);
+        void run(float* color, float* albedo, float* normal, int w, int h, bool dirty);
 
         int filter_type; // 0 = RT, 1 = RTLightmap
 
@@ -43,8 +43,7 @@ class OIDNDenoiser {
         int m_height;
 
         int m_defaultNumChannels;
-        int m_deviceDirty;
-        int m_filterDirty;
+        bool m_filterDirty;
         
         
 }; // OIDNDENOISER_H

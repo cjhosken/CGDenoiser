@@ -42,12 +42,14 @@ void OptiXDenoiser::setupDevice() {
 }
 
 
-void OptiXDenoiser::setupDenoiser(int w, int h) {
+void OptiXDenoiser::setupDenoiser(int w, int h, bool dirty) {
     std::cout << "[OptiX] Setting up Denoiser..." << std::endl;
 
     cuCtxSetCurrent(m_cuCtx);
 
-    if (m_denoiser && w == m_width && h == m_height) return;
+    if (!dirty) {
+        if (m_denoiser && w == m_width && h == m_height) return;
+    }
 
     if (m_denoiser) optixDenoiserDestroy(m_denoiser);
 
@@ -82,14 +84,14 @@ void OptiXDenoiser::setupDenoiser(int w, int h) {
 
 }
 
-void OptiXDenoiser::run(float* color, float* albedo, float* normal, float* motion, int w, int h)
+void OptiXDenoiser::run(float* color, float* albedo, float* normal, float* motion, int w, int h, bool dirty)
 {
     std::cout << "[OptiX] Rendering..." << std::endl;
 
     cuCtxSetCurrent(m_cuCtx);
 
     setupDevice();
-    setupDenoiser(w, h);
+    setupDenoiser(w, h, dirty);
 
     std::cout << "[OptiX] Creating Buffers and Loading Data..." << std::endl;
 

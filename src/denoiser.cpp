@@ -118,7 +118,9 @@ void CGDenoiser::renderStripe(ImagePlane &plane) {
                     m_color.data(), 
                     albedoIn ? m_albedo.data() : nullptr,
                     normalIn ? m_normal.data() : nullptr,
-                    m_fullW, m_fullH);
+                    m_fullW, m_fullH,
+                    m_deviceDirty
+                );
             }
 #if USE_OPTIX
             else if (m_engine == 1)
@@ -128,12 +130,15 @@ void CGDenoiser::renderStripe(ImagePlane &plane) {
                     albedoIn ? m_albedo.data() : nullptr,
                     normalIn ? m_normal.data() : nullptr,
                     motionIn ? m_motion.data() : nullptr,
-                    m_fullW, m_fullH);
+                    m_fullW, m_fullH,
+                    m_deviceDirty    
+                );
             }
 #endif
 
             m_cached = true;
             m_dirty = false;
+            m_deviceDirty = false;
         }
     }
 
@@ -213,7 +218,7 @@ int CGDenoiser::knob_changed(Knob *k)
 {
     m_filterDirty = true;
 
-    if (k->is("engine"))
+    if (k->is("engine") || k->is("denoiser_model"))
     {
         m_deviceDirty = true;
     }

@@ -4,7 +4,6 @@ OIDNDenoiser::OIDNDenoiser() {
     m_width = 0;
     m_height = 0;
 
-    m_deviceDirty = true;
     m_filterDirty = true;
 
     filter_type = 0;
@@ -74,14 +73,13 @@ void OIDNDenoiser::setupFilter() {
 }
 
 
-void OIDNDenoiser::run(float* color, float* albedo, float* normal, int w, int h)
+void OIDNDenoiser::run(float* color, float* albedo, float* normal, int w, int h, bool dirty)
 {
     std::cout << "[OIDN] Rendering..." << std::endl;
 
-    if (!m_device || m_deviceDirty)
+    if (!m_device || dirty)
     {
         setupDevice();
-        m_deviceDirty = false;
         m_filterDirty = true;
     }
 

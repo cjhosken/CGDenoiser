@@ -16,22 +16,18 @@ class OptiXDenoiser {
         OptiXDenoiser();
         ~OptiXDenoiser();
 
-        void run(float* color, float* albedo, float* normal, float* motion, int w, int h);
+        void run(float* color, float* albedo, float* normal, float* motion, int w, int h, bool dirty);
 
         int model; // 0 = HDR; 1 = LDR; 2 = TEMPORAL
         float blend;
 
     private:
         void setupDevice();
-        void setupDenoiser(int w, int h);
+        void setupDenoiser(int w, int h, bool dirty);
         void cleanup();
 
         int m_width;
         int m_height;
-
-        int m_defaultNumChannels;
-        int m_deviceDirty;
-        int m_filterDirty;
 
         OptixDeviceContext m_context = nullptr;
         OptixDenoiser m_denoiser = nullptr;
