@@ -34,9 +34,14 @@ public:
 
 private:
     // State tracking
-   std::vector<float> m_cachedOutput;
+    std::vector<float> m_cachedOutput;
     int m_fullW = 0;
     int m_fullH = 0;
+
+    std::vector<float> m_color;
+    std::vector<float> m_albedo;
+    std::vector<float> m_normal;
+    std::vector<float> m_motion; // float2 packed as float[W*H*2]
 
     bool m_cached = false;
     bool m_dirty = true;

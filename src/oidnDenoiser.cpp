@@ -40,6 +40,16 @@ void OIDNDenoiser::setupFilter() {
     m_filter.setImage("color", m_colorBuffer, oidn::Format::Float3, m_width, m_height);
     m_filter.setImage("output", m_outputBuffer, oidn::Format::Float3, m_width, m_height);
 
+    if (m_albedoBuffer)
+    {
+        m_filter.setImage("albedo", m_albedoBuffer, oidn::Format::Float3, m_width, m_height);
+    }
+
+    if (m_normalBuffer)
+    {
+        m_filter.setImage("normal", m_normalBuffer, oidn::Format::Float3, m_width, m_height);
+    }
+
     if (filter_type == 0)
     {
         m_filter.set("hdr", filter_hdr);
@@ -64,7 +74,7 @@ void OIDNDenoiser::setupFilter() {
 }
 
 
-void OIDNDenoiser::run(float* data, int w, int h)
+void OIDNDenoiser::run(float* color, float* albedo, float* normal, int w, int h)
 {
     std::cout << "[OIDN] Rendering..." << std::endl;
 
@@ -77,7 +87,7 @@ void OIDNDenoiser::run(float* data, int w, int h)
 
     if (!m_device)
         return;
-
+    
     bool dimsChanged = (w != m_width || h != m_height);
     if (dimsChanged || m_filterDirty || !m_filter)
     {
@@ -91,9 +101,19 @@ void OIDNDenoiser::run(float* data, int w, int h)
         m_colorBuffer = m_device.newBuffer(bufferSize);
         m_outputBuffer = m_device.newBuffer(bufferSize);
 
+        if (albedo) {
+            m_albedoBuffer = m_device.newBuffer(bufferSize);
+        }
+
+        if (normal) {
+            m_normalBuffer = m_device.newBuffer(bufferSize);
+        }
+
         setupFilter();
         m_filterDirty = false;
     }
+
+    size_t bufferSize = (size_t)w * h * 3 * sizeof(float);
 
     std::cout << "[OIDN] Getting Data..." << std::endl;
 
@@ -103,7 +123,17 @@ void OIDNDenoiser::run(float* data, int w, int h)
     if (!colorPtr || !outputPtr)
         return;
 
-    memcpy(colorPtr, data, (size_t)w * h * 3 * sizeof(float));
+    memcpy(colorPtr, color, bufferSize);
+
+    if (albedo) {
+        float* albedoPtr = (float*)m_albedoBuffer.getData();
+        memcpy(albedoPtr, albedo, bufferSize);
+    }
+
+    if (normal) {
+        float* normalPtr = (float*)m_normalBuffer.getData();
+        memcpy(normalPtr, normal, bufferSize);
+    }
 
     std::cout << "[OIDN] Data Retrieved! Executing Denoiser..." << std::endl;
 
@@ -111,6 +141,6 @@ void OIDNDenoiser::run(float* data, int w, int h)
 
     std::cout << "[OIDN] Denoised! Writing Data..." << std::endl;
 
-    memcpy(data, outputPtr, (size_t)w * h * 3 * sizeof(float));
+    memcpy(color, outputPtr, (size_t)w * h * 3 * sizeof(float));
     std::cout << "[OIDN] Finished!" << std::endl;
 }

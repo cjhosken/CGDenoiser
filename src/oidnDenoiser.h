@@ -18,7 +18,7 @@ class OIDNDenoiser {
         void setupDevice();
         void setupFilter();
 
-        void run(float* data, int w, int h);
+        void run(float* color, float* albedo, float* normal, int w, int h);
 
         int filter_type; // 0 = RT, 1 = RTLightmap
 

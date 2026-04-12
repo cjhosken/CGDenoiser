@@ -16,13 +16,12 @@ class OptiXDenoiser {
         OptiXDenoiser();
         ~OptiXDenoiser();
 
-        void run(float* data, int w, int h);
+        void run(float* color, float* albedo, float* normal, float* motion, int w, int h);
 
     private:
         void setupDevice();
         void setupDenoiser(int w, int h);
         void cleanup();
-
 
         int m_width;
         int m_height;
@@ -34,6 +33,7 @@ class OptiXDenoiser {
         OptixDeviceContext m_context = nullptr;
         OptixDenoiser m_denoiser = nullptr;
         CUstream m_stream = 0;
+        
         CUcontext m_cuCtx = nullptr;
 
         CUdeviceptr m_dState = 0;

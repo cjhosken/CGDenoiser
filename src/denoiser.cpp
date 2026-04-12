@@ -3,7 +3,7 @@
 
 CGDenoiser::CGDenoiser(Node *node) : PlanarIop(node)
 {
-    inputs(1);
+    inputs(4);
 
     m_engine = 0;
 
@@ -24,6 +24,10 @@ void CGDenoiser::renderStripe(ImagePlane &plane) {
     Box box = plane.bounds();
 
     Iop *colorIn = dynamic_cast<Iop *>(input(0));
+    Iop *albedoIn = input(1) ? dynamic_cast<Iop *>(input(1)) : nullptr;
+    Iop *normalIn = input(2) ? dynamic_cast<Iop *>(input(2)) : nullptr;
+    Iop *motionIn = input(3) ? dynamic_cast<Iop *>(input(3)) : nullptr;
+
     if (!colorIn)
         return;
 
@@ -44,32 +48,87 @@ void CGDenoiser::renderStripe(ImagePlane &plane) {
             m_fullH = fullH;
 
             // Fetch FULL image
-            ImagePlane fullInput(full, false, Mask_RGB, 3);
-            colorIn->fetchPlane(fullInput);
+            ImagePlane fullColor(full, false, Mask_RGB, 3);
+            colorIn->fetchPlane(fullColor);
 
-            m_cachedOutput.resize((size_t)m_fullW * m_fullH * 3);
+            ImagePlane fullAlbedo(full, false, Mask_RGB, 3);
+            ImagePlane fullNormal(full, false, Mask_RGB, 3);
+            ImagePlane fullMotion(full, false, Mask_RGB, 2); // will pack to float2
+
+            std::cout << "[CGDenoiser] Fetching Planes..." << std::endl;
+
+            if (albedoIn) albedoIn->fetchPlane(fullAlbedo);
+            if (normalIn) normalIn->fetchPlane(fullNormal);
+            if (motionIn) motionIn->fetchPlane(fullMotion);
+
+            size_t pixelCount = (size_t)m_fullW * m_fullH;
+
+            m_color.resize(pixelCount * 3);
+            if (albedoIn) m_albedo.resize(pixelCount * 3);
+            if (normalIn) m_normal.resize(pixelCount * 3);
+            if (motionIn) m_motion.resize(pixelCount * 2); // float2
+
+            std::cout << "[CGDenoiser] Copying into Buffer..." << std::endl;
 
             // Copy into contiguous buffer
             for (int y = full.y(); y < full.t(); y++)
             {
                 for (int x = full.x(); x < full.r(); x++)
                 {
-                    size_t idx = ((y - full.y()) * m_fullW + (x - full.x())) * 3;
+                    size_t base = ((y - full.y()) * m_fullW + (x - full.x()));
+                    size_t idx3 = base * 3;
+                    
+                    // COLOR
+                    m_color[idx3 + 0] = fullColor.at(x, y, 0);
+                    m_color[idx3 + 1] = fullColor.at(x, y, 1);
+                    m_color[idx3 + 2] = fullColor.at(x, y, 2);
 
-                    m_cachedOutput[idx + 0] = fullInput.at(x, y, 0);
-                    m_cachedOutput[idx + 1] = fullInput.at(x, y, 1);
-                    m_cachedOutput[idx + 2] = fullInput.at(x, y, 2);
+                    // ALBEDO
+                    if (albedoIn)
+                    {
+                        m_albedo[idx3 + 0] = fullAlbedo.at(x, y, 0);
+                        m_albedo[idx3 + 1] = fullAlbedo.at(x, y, 1);
+                        m_albedo[idx3 + 2] = fullAlbedo.at(x, y, 2);
+                    }
+
+                    // NORMAL
+                    if (normalIn)
+                    {
+                        m_normal[idx3 + 0] = fullNormal.at(x, y, 0);
+                        m_normal[idx3 + 1] = fullNormal.at(x, y, 1);
+                        m_normal[idx3 + 2] = fullNormal.at(x, y, 2);
+                    }
+
+                    // MOTION (XY only)
+                    if (motionIn)
+                    {
+                        size_t idx2 = base * 2;
+
+                        m_motion[idx2 + 0] = fullMotion.at(x, y, 0); // X
+                        m_motion[idx2 + 1] = fullMotion.at(x, y, 1); // Y
+                    }
                 }
             }
 
+            std::cout << "[CGDenoiser] Denoising..." << std::endl;
+
             if (m_engine == 0)
             {
-                m_oidn.run(m_cachedOutput.data(), m_fullW, m_fullH);
+                m_oidn.run(
+                    m_color.data(), 
+                    albedoIn ? m_albedo.data() : nullptr,
+                    normalIn ? m_normal.data() : nullptr,
+                    m_fullW, m_fullH);
             }
 #if USE_OPTIX
             else if (m_engine == 1)
             {
-                m_optix.run(m_cachedOutput.data(), m_fullW, m_fullH);
+                m_optix.run(
+                    m_color.data(), 
+                    albedoIn ? m_albedo.data() : nullptr,
+                    normalIn ? m_normal.data() : nullptr,
+                    motionIn ? m_motion.data() : nullptr,
+                    m_fullW, m_fullH);
             }
 #endif
 
@@ -91,9 +150,9 @@ void CGDenoiser::renderStripe(ImagePlane &plane) {
         {
             size_t idx = ((y - full.y()) * m_fullW + (x - full.x())) * 3;
 
-            if (r >= 0) plane.writableAt(x, y, r) = m_cachedOutput[idx + 0];
-            if (g >= 0) plane.writableAt(x, y, g) = m_cachedOutput[idx + 1];
-            if (b >= 0) plane.writableAt(x, y, b) = m_cachedOutput[idx + 2];
+            if (r >= 0) plane.writableAt(x, y, r) = m_color[idx + 0];
+            if (g >= 0) plane.writableAt(x, y, g) = m_color[idx + 1];
+            if (b >= 0) plane.writableAt(x, y, b) = m_color[idx + 2];
         }
     }
 }
@@ -154,9 +213,11 @@ const char *CGDenoiser::input_label(int n, char *) const
 {
     switch (n)
     {
-    case 0:
-        return "color";
-    default: return "color";
+        case 0: return "color";
+        case 1: return "albedo";
+        case 2: return "normal";
+        case 3: return "motion";
+        default: return "";
     }
 }
 
