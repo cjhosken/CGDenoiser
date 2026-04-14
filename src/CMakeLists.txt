@@ -22,7 +22,7 @@ endif()
 if (OIDN_SYCL)
     target_compile_definitions(CGDenoiser PRIVATE OIDN_SYCL=1)
 else()
-    target_compile_definitions(CGDenoiser PRIVATE OIDN-SYCL=0)
+    target_compile_definitions(CGDenoiser PRIVATE OIDN_SYCL=0)
 endif()
 
 if (OIDN_HIP)
@@ -43,12 +43,6 @@ else()
     target_compile_definitions(CGDenoiser PRIVATE OIDN_CPU=0)
 endif()
 
-
-
-
-
-
-
 # --- 2. Shared Linker/Include Logic ---
 target_link_libraries(CGDenoiser PUBLIC 
     Nuke::NDK
@@ -58,6 +52,7 @@ target_link_libraries(CGDenoiser PUBLIC
 # --- 3. Platform Specifics ---
 if(WIN32)
     set_target_properties(CGDenoiser PROPERTIES PREFIX "" SUFFIX ".dll")
+    set_target_properties(CGDenoiser PROPERTIES LINK_FLAGS "/NODEFAULTLIB:LIBCMT")
     
     target_compile_definitions(CGDenoiser PRIVATE 
         _CRT_SECURE_NO_WARNINGS

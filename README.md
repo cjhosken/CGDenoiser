@@ -17,6 +17,16 @@ Then, run either `install.bat` or `install.sh` to build the plugin.
 
 Once complete, you should see `plugins/CGDenoiser`.
 
+
+## Build Commands
+
+`-DNO_OPTIX=ON` Build without OptiX Enabled
+`-DNO_OIDN_CPU=OFF`
+`-DNO_OIDN_CUDA=ON`
+`-DNO_OIDN_HIP=ON`
+`-DNO_OIDN_METAL=ON`
+`-DNO_OIDN_SYCL=ON`
+
 ### Adding to Nuke
 
 Copy `plugins/CGDenoiser` into your NUKE_PATH (usually `.nuke`)

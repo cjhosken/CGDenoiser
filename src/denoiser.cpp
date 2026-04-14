@@ -274,4 +274,4 @@ void CGDenoiser::_validate(bool for_real)
 }
 
 static Iop *build(Node *node) { return new CGDenoiser(node); }
-const Iop::Description CGDenoiser::desc("CGDenoiser", build);
+const Iop::Description CGDenoiser::desc("CGDenoiser", "CGDenoiser", build);

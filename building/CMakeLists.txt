@@ -55,7 +55,7 @@ ExternalProject_Add(OpenImageDenoise
       -DCMAKE_BUILD_TYPE=Release
 
       -DOIDN_DEVICE_CPU=ON
-      -DOIDN_DEVICE_CUDA=ON
+      -DOIDN_DEVICE_CUDA=OFF
       -DOIDN_DEVICE_SYCL=OFF
       -DOIDN_DEVICE_HIP=OFF
       -DOIDN_DEVICE_METAL=OFF
