@@ -1,64 +1,52 @@
 #ifndef CGDENOISER_H
 #define CGDENOISER_H
 
-#include <mutex>
-
-#include "DDImage/PlanarIop.h"
-#include "DDImage/Knobs.h"
-
 #include "oidnDenoiser.h"
+#include "denoiserData.h"
 
-#if OPTIX
-#include "optixDenoiser.h"
-#endif
-
-using namespace DD::Image;
-
-class CGDenoiser : public PlanarIop
+class CGDenoiser: public DD::Image::PlanarIop
 {
+    unsigned int m_width;
+    unsigned int m_height;
 
-public:
-    // Constructor
-    CGDenoiser(Node *node);
-    ~CGDenoiser() override;
-    void _validate(bool for_real) override;
-    void renderStripe(ImagePlane &plane) override;
+    bool m_albedo_connected = false;
+    bool m_normal_connected = false;
 
-    void knobs(DD::Image::Knob_Callback) override;
-    int knob_changed(Knob *k) override;
-    const char *input_label(int n, char *) const override;
+    bool m_deviceDirty = false;
+    bool m_filterDirty = false;
 
-    static const Iop::Description desc;
-    const char *Class() const override { return desc.name; }
-    const char *node_help() const override { return "AI Denoiser using OIDN or OptiX"; }
+    OIDNDenoiser* m_oidn;
+    DenoiserData m_denoiserData;
 
-private:
-    // State tracking
-    std::vector<float> m_cachedOutput;
-    int m_fullW = 0;
-    int m_fullH = 0;
+    public:
+        CGDenoiser(Node* node): PlanarIop(node)
+        {
+            inputs(3);
 
-    std::vector<float> m_color;
-    std::vector<float> m_albedo;
-    std::vector<float> m_normal;
-    std::vector<float> m_motion; // float2 packed as float[W*H*2]
+            m_width = 0;
+            m_height = 0;
 
-    bool m_cached = false;
-    bool m_dirty = true;
+            m_oidn = new OIDNDenoiser();
+        }
 
-    std::mutex m_mutex;
+        const char* input_label(int n, char*) const override;
 
-    bool m_deviceDirty;
-    bool m_filterDirty;
+        void _validate(bool) override;
 
-    // --- Knob Variables ---
-    int m_engine; // 0 = OIDN, 1 = OptiX
+        void getRequests(const DD::Image::Box& box, const DD::Image::ChannelSet& channels, int count, DD::Image::RequestOutput &reqData) const override;
 
-    OIDNDenoiser m_oidn;
+        void renderStripe(DD::Image::ImagePlane& outputPlane) override;
 
-#if OPTIX
-    OptiXDenoiser m_optix;
-#endif
+        void knobs(DD::Image::Knob_Callback) override;
+        int knob_changed(DD::Image::Knob* k) override;
+
+        virtual bool useStripes() const override;
+        virtual bool renderFullPlanes() const override;
+
+        const char* Class() const override { return "CGDenoiser"; }
+        const char* node_help() const override { return "CGDenoiser for Nuke."; }
+        static const Iop::Description description;
 };
+
 
 #endif // CGDENOISER_H

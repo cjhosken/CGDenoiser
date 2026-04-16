@@ -1,277 +1,147 @@
 #include "denoiser.h"
-#include <mutex>
+#include "DDImage/Black.h"
 
-CGDenoiser::CGDenoiser(Node *node) : PlanarIop(node)
+
+void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
 {
-    inputs(4);
+    if (aborted() || cancelled()) return;
 
-    m_engine = 0;
+    // Check connections
+    m_albedo_connected = !(dynamic_cast<DD::Image::Black*>(input(1)));
+    m_normal_connected = !(dynamic_cast<DD::Image::Black*>(input(2)));
 
-    m_oidn = OIDNDenoiser();
+    DD::Image::Format imageFormat = input0().format();
+    m_width = imageFormat.width();
+    m_height = imageFormat.height();
 
-    #if OPTIX
-        m_optix = OptiXDenoiser();
-    #endif
-}
+    auto bufferSize = m_width * m_height * 3 * sizeof(float);
 
-CGDenoiser::~CGDenoiser() {}
-
-
-void CGDenoiser::renderStripe(ImagePlane &plane) {
-    if (!m_cached)
-        std::cout << "[CGDenoiser] Rendering (compute phase)..." << std::endl;
-
-    Box box = plane.bounds();
-
-    Iop *colorIn = dynamic_cast<Iop *>(input(0));
-    Iop *albedoIn = input(1) ? dynamic_cast<Iop *>(input(1)) : nullptr;
-    Iop *normalIn = input(2) ? dynamic_cast<Iop *>(input(2)) : nullptr;
-    Iop *motionIn = input(3) ? dynamic_cast<Iop *>(input(3)) : nullptr;
-
-    if (!colorIn)
+    m_denoiserData.allocate(m_width, m_height, false, false);
+    
+    std::cout << "[CGDenoiser] Starting to copy color data..." << std::endl;
+    
+    DD::Image::Box imageBounds = input0().format();
+    DD::Image::Iop* colorInput = dynamic_cast<DD::Image::Iop*>(input(0));
+    
+    if (colorInput == nullptr) {
+        std::cerr << "[CGDenoiser] Error: no color input!" << std::endl;
         return;
-
-    Box full = colorIn->info().box();
-    int fullW = full.w();
-    int fullH = full.h();
-
-    if (fullW <= 0 || fullH <= 0) return;
-
-    if (!m_cached || m_dirty || fullW != m_fullW || fullH != m_fullH)
-    {
-        std::lock_guard<std::mutex> lock(m_mutex);
-
-        if (!m_cached || m_dirty || fullW != m_fullW || fullH != m_fullH) {
-            std::cout << "[CGDenoiser] Computing full-frame denoise..." << std::endl;
-
-            m_fullW = fullW;
-            m_fullH = fullH;
-
-            // Fetch FULL image
-            ImagePlane fullColor(full, false, Mask_RGB, 3);
-            colorIn->fetchPlane(fullColor);
-
-            ImagePlane fullAlbedo(full, false, Mask_RGB, 3);
-            ImagePlane fullNormal(full, false, Mask_RGB, 3);
-            ImagePlane fullMotion(full, false, Mask_RGB, 2); // will pack to float2
-
-            std::cout << "[CGDenoiser] Fetching Planes..." << std::endl;
-
-            if (albedoIn) albedoIn->fetchPlane(fullAlbedo);
-            if (normalIn) normalIn->fetchPlane(fullNormal);
-            if (motionIn) motionIn->fetchPlane(fullMotion);
-
-            size_t pixelCount = (size_t)m_fullW * m_fullH;
-
-            m_color.resize(pixelCount * 3);
-            if (albedoIn) m_albedo.resize(pixelCount * 3);
-            if (normalIn) m_normal.resize(pixelCount * 3);
-            if (motionIn) m_motion.resize(pixelCount * 2); // float2
-
-            std::cout << "[CGDenoiser] Copying into Buffer..." << std::endl;
-
-            // Copy into contiguous buffer
-            for (int y = full.y(); y < full.t(); y++)
-            {
-                for (int x = full.x(); x < full.r(); x++)
-                {
-                    size_t base = ((y - full.y()) * m_fullW + (x - full.x()));
-                    size_t idx3 = base * 3;
-                    
-                    // COLOR
-                    m_color[idx3 + 0] = fullColor.at(x, y, 0);
-                    m_color[idx3 + 1] = fullColor.at(x, y, 1);
-                    m_color[idx3 + 2] = fullColor.at(x, y, 2);
-
-                    // ALBEDO
-                    if (albedoIn)
-                    {
-                        m_albedo[idx3 + 0] = fullAlbedo.at(x, y, 0);
-                        m_albedo[idx3 + 1] = fullAlbedo.at(x, y, 1);
-                        m_albedo[idx3 + 2] = fullAlbedo.at(x, y, 2);
-                    }
-
-                    // NORMAL
-                    if (normalIn)
-                    {
-                        m_normal[idx3 + 0] = fullNormal.at(x, y, 0);
-                        m_normal[idx3 + 1] = fullNormal.at(x, y, 1);
-                        m_normal[idx3 + 2] = fullNormal.at(x, y, 2);
-                    }
-
-                    // MOTION (XY only)
-                    if (motionIn)
-                    {
-                        size_t idx2 = base * 2;
-
-                        m_motion[idx2 + 0] = fullMotion.at(x, y, 0); // X
-                        m_motion[idx2 + 1] = fullMotion.at(x, y, 1); // Y
-                    }
-                }
+    }
+    
+    if (!colorInput->tryValidate(true)) {
+        std::cerr << "[CGDenoiser] Error: color input validation failed!" << std::endl;
+        return;
+    }
+    
+    std::cout << "[CGDenoiser] Requesting color data..." << std::endl;
+    colorInput->request(imageBounds.x(), imageBounds.y(), imageBounds.r(), imageBounds.t(), 
+                       DD::Image::Mask_RGB, 0);
+    
+    std::cout << "[CGDenoiser] Creating image plane..." << std::endl;
+    DD::Image::ImagePlane colorPlane(imageBounds, false, DD::Image::Mask_RGB, 3);
+    
+    std::cout << "[CGDenoiser] Fetching plane..." << std::endl;
+    colorInput->fetchPlane(colorPlane);
+    
+    std::cout << "[CGDenoiser] Getting readable data..." << std::endl;
+    const float* srcData = static_cast<const float*>(colorPlane.readable());
+    
+    if (!srcData) {
+        std::cerr << "[CGDenoiser] Error: srcData is null!" << std::endl;
+        return;
+    }
+    
+    float* dstBuffer = m_denoiserData.getColor();
+    if (!dstBuffer) {
+        std::cerr << "[CGDenoiser] Error: dstBuffer is null!" << std::endl;
+        return;
+    }
+    
+    std::cout << "[CGDenoiser] Copying color data..." << std::endl;
+    auto chanStride = colorPlane.chanStride();
+    int pixelsPerRow = m_width * 3;
+    
+    // Use pointer arithmetic for faster copying
+    #pragma omp parallel for
+    for (int c = 0; c < 3; c++) {
+        const float* srcChan = &srcData[chanStride * c];
+        float* dstPtr = dstBuffer + c;
+        
+        for (int y = 0; y < m_height; y++) {
+            int dstRowStart = ((m_height - y - 1) * m_width) * 3;
+            for (int x = 0; x < m_width; x++) {
+                *(dstPtr + dstRowStart + x * 3) = srcChan[y * m_width + x];
             }
-
-            std::cout << "[CGDenoiser] Denoising..." << std::endl;
-
-            if (m_engine == 0)
-            {
-                m_oidn.run(
-                    m_color.data(), 
-                    albedoIn ? m_albedo.data() : nullptr,
-                    normalIn ? m_normal.data() : nullptr,
-                    m_fullW, m_fullH,
-                    m_deviceDirty
-                );
-            }
-#if OPTIX
-            else if (m_engine == 1)
-            {
-                m_optix.run(
-                    m_color.data(), 
-                    albedoIn ? m_albedo.data() : nullptr,
-                    normalIn ? m_normal.data() : nullptr,
-                    motionIn ? m_motion.data() : nullptr,
-                    m_fullW, m_fullH,
-                    m_deviceDirty    
-                );
-            }
-#endif
-
-            m_cached = true;
-            m_dirty = false;
-            m_deviceDirty = false;
         }
     }
+    
+    std::cout << "[CGDenoiser] Color data copied successfully!" << std::endl;
 
-    // --- SERVE STRIPE FROM CACHE ---
-    plane.writable();
+    if (aborted() || cancelled()) return;
 
-    int r = plane.chanNo(DD::Image::Chan_Red);
-    int g = plane.chanNo(DD::Image::Chan_Green);
-    int b = plane.chanNo(DD::Image::Chan_Blue);
+    // Write data back
+    std::cout << "[CGDenoiser] Writing output..." << std::endl;
+    outputPlane.writable();
+    const float* outputData = m_denoiserData.getColor();
 
-    for (int y = box.y(); y < box.t(); y++)
+    const DD::Image::Channel channels[] = {
+        DD::Image::Channel::Chan_Red,
+        DD::Image::Channel::Chan_Green,
+        DD::Image::Channel::Chan_Blue
+    };
+    
+    #pragma omp parallel for
+    for (int chanNo = 0; chanNo < 3; chanNo++)
     {
-        size_t rowStart = ((size_t)(y - full.y()) * m_fullW) * 3;
-        for (int x = box.x(); x < box.r(); x++)
-        {
-            size_t idx = rowStart + (x - full.x()) * 3;
+        int c = outputPlane.chanNo(channels[chanNo]);
+        if (c < 0) continue;
+        
+        const float* srcPtr = outputData + chanNo;
 
-            if (r >= 0) plane.writableAt(x, y, r) = m_color[idx + 0];
-            if (g >= 0) plane.writableAt(x, y, g) = m_color[idx + 1];
-            if (b >= 0) plane.writableAt(x, y, b) = m_color[idx + 2];
+        for (int j = 0; j < m_height; j++) {
+            int srcRowStart = ((m_height - j - 1) * m_width) * 3;
+            for (int i = 0; i < m_width; i++) {
+                outputPlane.writableAt(i, j, c) = *(srcPtr + srcRowStart + i * 3);
+            }
         }
     }
+    
+    std::cout << "[CGDenoiser] Output written successfully!" << std::endl;
 }
 
-void CGDenoiser::knobs(Knob_Callback f)
-{
-    const char *engine_names[] = {
-        "OpenImageDenoise (OIDN)",
-#if OPTIX
-        "NVIDIA OptiX",
-#endif
-        nullptr};
-    Enumeration_knob(f, &m_engine, engine_names, "engine", "Engine");
-    Tooltip(f, "Select the denoising backend.");
-    Divider(f);
-
-    // --- Main OptiX Settings
-#if OPTIX
-    const char *denoiser_model_names[] = {"HDR", "AOV", "Temporal", nullptr};
-    Enumeration_knob(f, &m_optix.model, denoiser_model_names, "denoiser_model", "Denoiser Model");
-    Tooltip(f, "TODO");
-
-    Float_knob(f, &m_optix.blend, "blend", "Blend");
-    Tooltip(f, "TODO");
 
 
-#endif
+void CGDenoiser::knobs(DD::Image::Knob_Callback f) {}
+int CGDenoiser::knob_changed(DD::Image::Knob* k) { return 0; }
 
-
-    // --- Main OIDN Settings
-    Enumeration_knob(f, &m_oidn.device_type, OIDN_Device, "device_type", "Device Type");
-
-    Enumeration_knob(f, &m_oidn.filter_type, OIDN_Filter, "filter_type", "Filter Type");
-
-    Enumeration_knob(f, &m_oidn.filter_quality, OIDN_Quality, "quality", "Quality");
-    Tooltip(f, "Fast: lowest quality. Balanced: medium. High: best quality, slowest.");
-
-    Bool_knob(f, &m_oidn.filter_hdr, "hdr", "HDR");
-    Tooltip(f, "The main input image is HDR");
-
-    Bool_knob(f, &m_oidn.filter_srgb, "srgb", "sRGB");
-    Tooltip(f, "The main input image is encoded with the sRGB (or 2.2 gamma) curve (LDR only) or is linear; the output will be encoded with the same curve");
-
-    Float_knob(f, &m_oidn.filter_inputScale, "input_scale", "Input Scale");
-    Tooltip(f, "Scales values in the main input image before filtering, without scaling the output too, which can be used to map color or auxiliary feature values to the expected range, e.g. for mapping HDR values to physical units (which affects the quality of the output but not the range of the output values); if set to NaN, the scale is computed implicitly for HDR images or set to 1 otherwise");
-
-    Bool_knob(f, &m_oidn.filter_cleanAux, "clean_aux", "Clean Aux (Albedo/Normal)");
-    Tooltip(f, "The auxiliary feature (albedo, normal) images are noise-free; recommended for highest quality but should not be enabled for noisy auxiliary images to avoid residual noise");
-
-    Divider(f);
-
-    Bool_knob(f, &m_oidn.filter_directional, "directional", "Directional (Lightmap Only)");
-    Tooltip(f, "Only used for RTLightmap filter to handle directional components.");
-}
-
-int CGDenoiser::knob_changed(Knob *k)
-{
-    m_filterDirty = true;
-
-    if (k->is("engine") || k->is("denoiser_model") || k->is("device_type"))
-    {
-        m_deviceDirty = true;
-    }
-
-    bool useOIDN = (m_engine == 0);
-    bool isRT = (m_oidn.filter_type == 0);
-
-    knob("device_type")->visible(useOIDN);
-    knob("filter_type")->visible(useOIDN);
-    knob("quality")->visible(useOIDN);
-    knob("hdr")->visible(useOIDN && isRT);
-    knob("srgb")->visible(useOIDN && isRT);
-    knob("input_scale")->visible(useOIDN);
-    knob("clean_aux")->visible(useOIDN);
-    knob("directional")->visible(useOIDN && !isRT);
-
-    #if OPTIX
-        // Example: if you add OptiX-specific knobs later
-        knob("blend")->visible(!useOIDN);
-        knob("denoiser_model")->visible(!useOIDN);
-    #endif
-
-
-    std::cout << "[CGDenoiser] Knob Changed" << std::endl;
-
-    return 1;
-}
-
-const char *CGDenoiser::input_label(int n, char *) const
+const char* CGDenoiser::input_label(int n, char*) const
 {
     switch (n)
     {
-        case 0: return "color";
         case 1: return "albedo";
         case 2: return "normal";
-        case 3: return "motion";
-        default: return "";
+        default: return "color";
     }
 }
 
-void CGDenoiser::_validate(bool for_real)
+void CGDenoiser::_validate(bool for_real) { copy_info(); }
+
+void CGDenoiser::getRequests(const DD::Image::Box& box, const DD::Image::ChannelSet& channels, int count, DD::Image::RequestOutput &reqData) const
 {
-    m_dirty = true;
-    m_cached = false;
-
-    copy_info();
-
-    for (int i = 0; i < 4; ++i) {
-        if (input(i)) {
-            input(i)->validate(for_real);
-        }
+    int nInputs = (int)getInputs().size();
+    for (int i = 0; i < nInputs; i++) {
+        const DD::Image::ChannelSet channels = input(i)->info().channels();
+        input(i)->request(channels, count);
     }
 }
 
-static Iop *build(Node *node) { return new CGDenoiser(node); }
-const Iop::Description CGDenoiser::desc("CGDenoiser", "CGDenoiser", build);
+bool CGDenoiser::useStripes() const { return false; }
+
+bool CGDenoiser::renderFullPlanes() const { return true; }
+
+static DD::Image::Iop* build(Node* node)
+{
+    return new CGDenoiser(node);
+}
+
+const DD::Image::Iop::Description CGDenoiser::description("CGDenoiser", nullptr, build);

@@ -2,8 +2,10 @@
 #define OIDNDENOISER_H
 
 #include <iostream>
+
 #include "DDImage/PlanarIop.h"
 #include <OpenImageDenoise/oidn.hpp>
+#include "denoiserData.h"
 
 using namespace DD::Image;
 
@@ -43,7 +45,7 @@ class OIDNDenoiser {
         void setupDevice();
         void setupFilter();
 
-        void run(float* color, float* albedo, float* normal, int w, int h, bool dirty);
+        void run(DenoiserData& data, bool deviceDirty, bool filterDirty);
 
         int device_type; // 0=Default, 1=CPU, 2=CUDA, 3=HIP, 4=Metal, 5=SYCL
         int filter_type; // 0 = RT, 1 = RTLightmap

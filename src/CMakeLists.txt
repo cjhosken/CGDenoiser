@@ -4,12 +4,12 @@ set(PLUGIN_PACKAGE_DIR "${CMAKE_SOURCE_DIR}/plugins/CGDenoiser")
 # --- 1. Target Definition ---
 
 if(OPTIX)
-    add_library(CGDenoiser SHARED denoiser.cpp oidnDenoiser.cpp optixDenoiser.cpp)
+    add_library(CGDenoiser SHARED denoiser.cpp denoiserData.cpp oidnDenoiser.cpp optixDenoiser.cpp)
     target_link_libraries(CGDenoiser PUBLIC CUDA::cudart CUDA::cuda_driver)
     target_include_directories(CGDenoiser PRIVATE ${OptiX_INCLUDE_DIR})
     target_compile_definitions(CGDenoiser PRIVATE OPTIX=1)
 else()
-    add_library(CGDenoiser SHARED denoiser.cpp oidnDenoiser.cpp)
+    add_library(CGDenoiser SHARED denoiser.cpp denoiserData.cpp oidnDenoiser.cpp)
     target_compile_definitions(CGDenoiser PRIVATE OPTIX=0)
 endif()
 
@@ -49,15 +49,17 @@ target_link_libraries(CGDenoiser PUBLIC
     OpenImageDenoise::OpenImageDenoise
 )
 
+set(CMAKE_BUILD_TYPE Release)
+
 # --- 3. Platform Specifics ---
 if(WIN32)
-    set_target_properties(CGDenoiser PROPERTIES PREFIX "" SUFFIX ".dll")
-    set_target_properties(CGDenoiser PROPERTIES LINK_FLAGS "/NODEFAULTLIB:LIBCMT")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O2 -DNDEBUG -MT")
     
     target_compile_definitions(CGDenoiser PRIVATE 
-        _CRT_SECURE_NO_WARNINGS
-        _SCL_SECURE_NO_WARNINGS
+        _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR
     )
+
+    target_compile_options(CGDenoiser PRIVATE /wd4996)
 else()
     # Linux Settings
     set_target_properties(CGDenoiser PROPERTIES 

@@ -1,4 +1,5 @@
 #include "oidnDenoiser.h"
+#include <algorithm>
 
 OIDNDenoiser::OIDNDenoiser() {
     m_width = 0;
@@ -51,20 +52,27 @@ void OIDNDenoiser::setupDevice() {
 
     m_device = nullptr;
 
-    type = device_types[device_type];
+    const int maxIndex = static_cast<int>(sizeof(device_types) / sizeof(device_types[0])) - 1;
+    const int clampedIndex = std::max(0, std::min(device_type, maxIndex));
+    type = device_types[clampedIndex];
+
+    std::cout << "[OIDN] Using Device Type... " << std::endl;
     try
     {
         m_device = oidn::newDevice(type);
-        if (m_device)
-        {
-            m_device.commit();
-        }
+        m_device.setErrorFunction([](void*, oidn::Error code, const char* message) {
+            std::cerr << "[OIDN Error] (" << static_cast<int>(code) << ") " << (message ? message : "") << std::endl;
+        });
+        m_device.commit();
     }
     catch(const std::exception& e)
     {
         std::cerr << "[OIDN Error] Failed to init device: " << e.what() << std::endl;
-        std::cerr << "[OIDN] Falling back to CPU..." << std::endl;
+        std::cerr << "[OIDN] Falling back to Default device..." << std::endl;
         m_device = oidn::newDevice(oidn::DeviceType::Default);
+        m_device.setErrorFunction([](void*, oidn::Error code, const char* message) {
+            std::cerr << "[OIDN Error] (" << static_cast<int>(code) << ") " << (message ? message : "") << std::endl;
+        });
         m_device.commit();
     }
     
@@ -120,11 +128,14 @@ void OIDNDenoiser::setupFilter() {
 }
 
 
-void OIDNDenoiser::run(float* color, float* albedo, float* normal, int w, int h, bool dirty)
+void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 {
     std::cout << "[OIDN] Rendering..." << std::endl;
 
-    if (!m_device || dirty)
+    int w = data.getWidth();
+    int h = data.getHeight();
+
+    if (!m_device || deviceDirty)
     {
         setupDevice();
         m_filterDirty = true;
@@ -132,62 +143,83 @@ void OIDNDenoiser::run(float* color, float* albedo, float* normal, int w, int h,
 
     if (!m_device)
         return;
+
+    if (filterDirty)
+        m_filterDirty = true;
     
-    bool dimsChanged = (w != m_width || h != m_height);
-    if (dimsChanged || m_filterDirty || !m_filter)
+    const bool dimsChanged = (w != m_width || h != m_height);
+    const bool auxChanged =
+        (data.hasAlbedo() != static_cast<bool>(m_albedoBuffer)) ||
+        (data.hasNormal() != static_cast<bool>(m_normalBuffer));
+
+    if (dimsChanged || auxChanged || !m_colorBuffer || !m_outputBuffer)
     {
         std::cout << "[OIDN] Dims Changed! Updating Buffers..." << std::endl;
 
         m_width = w;
         m_height = h;
 
-        size_t bufferSize = static_cast<size_t>(m_width) * m_height * 3 * sizeof(float);
+        size_t bufferSize = data.getColorSize();
 
         m_colorBuffer = m_device.newBuffer(bufferSize);
         m_outputBuffer = m_device.newBuffer(bufferSize);
 
-        if (albedo) {
+        if (data.hasAlbedo()) {
             m_albedoBuffer = m_device.newBuffer(bufferSize);
-        } else {m_albedoBuffer = nullptr;}
-
-        if (normal) {
-            m_normalBuffer = m_device.newBuffer(bufferSize);
         } else {
-            m_albedoBuffer = nullptr;
+            m_albedoBuffer = {};
         }
 
+        if (data.hasNormal()) {
+            m_normalBuffer = m_device.newBuffer(bufferSize);
+        } else {
+            m_normalBuffer = {};
+        }
+
+        m_filterDirty = true;
+    }
+
+    if (m_filterDirty || !m_filter)
+    {
         setupFilter();
         m_filterDirty = false;
     }
 
-    size_t bufferSize = (size_t)w * h * 3 * sizeof(float);
+    size_t bufferSize = data.getColorSize();
 
     std::cout << "[OIDN] Getting Data..." << std::endl;
 
-    float *colorPtr = (float *)m_colorBuffer.getData();
-    float* outputPtr = (float*)m_outputBuffer.getData();
+    m_colorBuffer.write(0, bufferSize, data.getColor());
 
-    if (!colorPtr || !outputPtr)
-        return;
-
-    memcpy(colorPtr, color, bufferSize);
-
-    if (albedo) {
-        float* albedoPtr = (float*)m_albedoBuffer.getData();
-        memcpy(albedoPtr, albedo, bufferSize);
+    if (data.hasAlbedo()) {
+        m_albedoBuffer.write(0, bufferSize, data.getAlbedo());
     }
 
-    if (normal) {
-        float* normalPtr = (float*)m_normalBuffer.getData();
-        memcpy(normalPtr, normal, bufferSize);
+    if (data.hasNormal()) {
+        m_normalBuffer.write(0, bufferSize, data.getNormal());
     }
 
     std::cout << "[OIDN] Data Retrieved! Executing Denoiser..." << std::endl;
 
     m_filter.execute();
 
+    const char* message = nullptr;
+    const auto err = m_device.getError(message);
+    if (err != oidn::Error::None)
+    {
+        std::cerr << "[OIDN Error] (" << static_cast<int>(err) << ") " << (message ? message : "") << std::endl;
+        return;
+    }
+
     std::cout << "[OIDN] Denoised! Writing Data..." << std::endl;
 
-    memcpy(color, outputPtr, (size_t)w * h * 3 * sizeof(float));
+    float* outputPtr = data.getOutput();
+    if (!outputPtr)
+    {
+        std::cerr << "[OIDN Error] Output buffer is null!" << std::endl;
+        return;
+    }
+
+    m_outputBuffer.read(0, bufferSize, outputPtr);
     std::cout << "[OIDN] Finished!" << std::endl;
 }
