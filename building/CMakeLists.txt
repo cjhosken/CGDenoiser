@@ -61,6 +61,11 @@ ExternalProject_Add(OpenImageDenoise
       -DOIDN_DEVICE_METAL=OFF
 
       -DOIDN_APPS=OFF
+
+      -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
+      -DBUILD_SHARED_LIBS=ON
+      -DOIDN_ARCH=AVX2
+      -DOIDN_STATIC_LIB=OFF
     DEPENDS ${CHAIN}
 )
 set(CHAIN OpenImageDenoise)

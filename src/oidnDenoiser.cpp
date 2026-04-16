@@ -22,66 +22,13 @@ OIDNDenoiser::OIDNDenoiser() {
 OIDNDenoiser::~OIDNDenoiser() {}
 
 void OIDNDenoiser::setupDevice() {
-    std::cout << "[OIDN] Setting up Device..." << std::endl;
-
-    oidn::DeviceType type = oidn::DeviceType::Default;
-
-    oidn::DeviceType device_types[] = {
-        oidn::DeviceType::Default,
-
-        #if OIDN_CPU
-        oidn::DeviceType::CPU,
-        #endif
-
-        #if OIDN_CUDA
-        oidn::DeviceType::CUDA,
-        #endif
-
-        #if OIDN_HIP
-        oidn::DeviceType::HIP,
-        #endif
-
-        #if OIDN_METAL
-        oidn::DeviceType::Metal,
-        #endif
-
-        #if OIDN_SYCL
-        oidn::DeviceType::SYCL
-        #endif
-    };
-
-    m_device = nullptr;
-
-    const int maxIndex = static_cast<int>(sizeof(device_types) / sizeof(device_types[0])) - 1;
-    const int clampedIndex = std::max(0, std::min(device_type, maxIndex));
-    type = device_types[clampedIndex];
-
-    std::cout << "[OIDN] Using Device Type... " << std::endl;
-    try
-    {
-        m_device = oidn::newDevice(type);
-        m_device.setErrorFunction([](void*, oidn::Error code, const char* message) {
-            std::cerr << "[OIDN Error] (" << static_cast<int>(code) << ") " << (message ? message : "") << std::endl;
-        });
-        m_device.commit();
-    }
-    catch(const std::exception& e)
-    {
-        std::cerr << "[OIDN Error] Failed to init device: " << e.what() << std::endl;
-        std::cerr << "[OIDN] Falling back to Default device..." << std::endl;
-        m_device = oidn::newDevice(oidn::DeviceType::Default);
-        m_device.setErrorFunction([](void*, oidn::Error code, const char* message) {
-            std::cerr << "[OIDN Error] (" << static_cast<int>(code) << ") " << (message ? message : "") << std::endl;
-        });
-        m_device.commit();
-    }
-    
-    std::cout << "[OIDN] Device Created!" << std::endl;
+    // OIDN device creation causes crashes in Nuke environment - disabled for now
+    std::cout << "Making new Device" << std::endl;
+    m_device = oidnNewDevice(OIDNDeviceType::OIDN_DEVICE_TYPE_CPU);
+    m_device.commit();
 }
 
 void OIDNDenoiser::setupFilter() {
-    std::cout << "[OIDN] Setting up Filter..." << std::endl;
-
     m_filter = m_device.newFilter(OIDN_Filter[filter_type]);
 
     m_filter.setImage("color", m_colorBuffer, oidn::Format::Float3, m_width, m_height);
@@ -118,20 +65,12 @@ void OIDNDenoiser::setupFilter() {
     };
 
     m_filter.set("quality", quality[filter_quality]);
-
-    std::cout << "[OIDN] Filter Created!" << std::endl;
-
     m_filter.commit();
-
-    std::cout << "[OIDN] Filter Comitted!" << std::endl;
-
 }
 
 
 void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 {
-    std::cout << "[OIDN] Rendering..." << std::endl;
-
     int w = data.getWidth();
     int h = data.getHeight();
 
@@ -154,8 +93,6 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
     if (dimsChanged || auxChanged || !m_colorBuffer || !m_outputBuffer)
     {
-        std::cout << "[OIDN] Dims Changed! Updating Buffers..." << std::endl;
-
         m_width = w;
         m_height = h;
 
@@ -187,8 +124,6 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
     size_t bufferSize = data.getColorSize();
 
-    std::cout << "[OIDN] Getting Data..." << std::endl;
-
     m_colorBuffer.write(0, bufferSize, data.getColor());
 
     if (data.hasAlbedo()) {
@@ -198,8 +133,6 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
     if (data.hasNormal()) {
         m_normalBuffer.write(0, bufferSize, data.getNormal());
     }
-
-    std::cout << "[OIDN] Data Retrieved! Executing Denoiser..." << std::endl;
 
     m_filter.execute();
 
@@ -211,8 +144,6 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
         return;
     }
 
-    std::cout << "[OIDN] Denoised! Writing Data..." << std::endl;
-
     float* outputPtr = data.getOutput();
     if (!outputPtr)
     {
@@ -221,5 +152,4 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
     }
 
     m_outputBuffer.read(0, bufferSize, outputPtr);
-    std::cout << "[OIDN] Finished!" << std::endl;
 }

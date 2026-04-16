@@ -49,12 +49,21 @@ target_link_libraries(CGDenoiser PUBLIC
     OpenImageDenoise::OpenImageDenoise
 )
 
-set(CMAKE_BUILD_TYPE Release)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+  if(WIN32)
+    # Was getting LNK4098: defaultlib 'MSCVRT' conflicts with use of other libs
+    # It took many hours to figure out the -MT flag
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O2 -DNDEBUG -MT")
+  else()
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O3 -DNDEBUG -Wall")
+  endif()
+endif()
+
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # --- 3. Platform Specifics ---
 if(WIN32)
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O2 -DNDEBUG -MT")
-    
     target_compile_definitions(CGDenoiser PRIVATE 
         _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR
     )
@@ -97,15 +106,14 @@ endif()
 # Install the actual compiled plugin
 install(TARGETS CGDenoiser DESTINATION ${PLUGIN_PACKAGE_DIR})
 
-# Install supporting libraries (OIDN, TBB, etc.)
-# We flatten these into the same folder so $ORIGIN RPATH works
+# Install supporting libraries (OIDN only - exclude TBB to avoid conflicts with Nuke's TBB)
 install(
-    DIRECTORY "${CMAKE_SOURCE_DIR}/lib/bin/"
+    FILES 
+        "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise.dll"
+        "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_core.dll"
+        "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_device_cpu.dll"
     DESTINATION "${PLUGIN_PACKAGE_DIR}"
-    FILES_MATCHING 
-    PATTERN "*.dll"
-    PATTERN "*.so*"
-    PATTERN "*.dylib*"
+    OPTIONAL
 )
 
 install(

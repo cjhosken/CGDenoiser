@@ -18,8 +18,6 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
 
     m_denoiserData.allocate(m_width, m_height, false, false);
     
-    std::cout << "[CGDenoiser] Starting to copy color data..." << std::endl;
-    
     DD::Image::Box imageBounds = input0().format();
     DD::Image::Iop* colorInput = dynamic_cast<DD::Image::Iop*>(input(0));
     
@@ -33,17 +31,12 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
         return;
     }
     
-    std::cout << "[CGDenoiser] Requesting color data..." << std::endl;
     colorInput->request(imageBounds.x(), imageBounds.y(), imageBounds.r(), imageBounds.t(), 
                        DD::Image::Mask_RGB, 0);
     
-    std::cout << "[CGDenoiser] Creating image plane..." << std::endl;
     DD::Image::ImagePlane colorPlane(imageBounds, false, DD::Image::Mask_RGB, 3);
-    
-    std::cout << "[CGDenoiser] Fetching plane..." << std::endl;
     colorInput->fetchPlane(colorPlane);
     
-    std::cout << "[CGDenoiser] Getting readable data..." << std::endl;
     const float* srcData = static_cast<const float*>(colorPlane.readable());
     
     if (!srcData) {
@@ -57,7 +50,6 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
         return;
     }
     
-    std::cout << "[CGDenoiser] Copying color data..." << std::endl;
     auto chanStride = colorPlane.chanStride();
     int pixelsPerRow = m_width * 3;
     
@@ -74,15 +66,15 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
             }
         }
     }
-    
-    std::cout << "[CGDenoiser] Color data copied successfully!" << std::endl;
 
     if (aborted() || cancelled()) return;
 
-    // Write data back
-    std::cout << "[CGDenoiser] Writing output..." << std::endl;
+    // Run OIDN denoising
+    m_oidn->run(m_denoiserData, m_deviceDirty, m_filterDirty);
+
+    // Write denoised output back
     outputPlane.writable();
-    const float* outputData = m_denoiserData.getColor();
+    const float* outputData = m_denoiserData.getOutput();
 
     const DD::Image::Channel channels[] = {
         DD::Image::Channel::Chan_Red,
@@ -105,8 +97,6 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
             }
         }
     }
-    
-    std::cout << "[CGDenoiser] Output written successfully!" << std::endl;
 }
 
 
