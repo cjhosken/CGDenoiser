@@ -108,6 +108,8 @@ void CGDenoiser::knobs(DD::Image::Knob_Callback f) {
 
     Divider(f);
 
+    BeginGroup(f, "oidn_group", "OIDN Settings");
+
     // OIDN
     Enumeration_knob(f, &m_oidn->device_type, OIDN_Device, "Device");
     Tooltip(f, "The hardward backend used for denoising");
@@ -127,12 +129,38 @@ void CGDenoiser::knobs(DD::Image::Knob_Callback f) {
     Bool_knob(f, &m_oidn->filter_directional, "filter_directional", "Directional");
     Tooltip(f, "Only used for RTLightmap filter.");
 
+    EndGroup(f);
+    
+    // OptiX
+    #if OPTIX
+
+    BeginGroup(f, "optix_group", "OptiX Settings");
+
+    Enumeration_knob(f, &m_optix->model, OptiX_MODEL, "Model");
+    Tooltip(f, "model type");
+
+    Float_knob(f, &m_optix->blend, "filter_blend", "Blend");
+    Tooltip(f, "Blend. 1.0 is denoised.");
+
+    EndGroup(f);
+
+    #endif
 }
+
 int CGDenoiser::knob_changed(DD::Image::Knob* k) { 
     // Device changes
     if (k->is("Engine") || k->is("Device")) { // Ensure this matches the internal name in knobs()
         m_deviceDirty = true;
         m_filterDirty = true;
+
+        bool useOIDN = (m_engine == 0);
+
+        if (knob("oidn_group"))
+            knob("oidn_group")->visible(useOIDN);
+
+
+        if (knob("optix_group"))
+            knob("optix_group")->visible(!useOIDN);
         
         return 1;
     }    

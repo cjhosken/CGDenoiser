@@ -7,7 +7,7 @@
 
 OptiXDenoiser::OptiXDenoiser() {
     model = 0;
-    blend = 0.0f;
+    blend = 1.0f;
 }
 
 OptiXDenoiser::~OptiXDenoiser() {cleanup();}
@@ -61,6 +61,7 @@ void OptiXDenoiser::setupDenoiser(int w, int h, bool dirty) {
     if (model == 0)      kind = OPTIX_DENOISER_MODEL_KIND_HDR;
     else if (model == 1) kind = OPTIX_DENOISER_MODEL_KIND_AOV;
     else                 kind = OPTIX_DENOISER_MODEL_KIND_TEMPORAL;
+
     optixDenoiserCreate(m_context, kind, &options, &m_denoiser);
 
     OptixDenoiserSizes sizes;
@@ -195,7 +196,7 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
     OptixDenoiserParams params = {};
     params.hdrIntensity = m_dIntensity;
-    params.blendFactor = blend;
+    params.blendFactor = 1.0f - blend;
 
     OptixDenoiserLayer layer = {};
     layer.input  = inputImage;

@@ -11,6 +11,8 @@
 
 using namespace DD::Image;
 
+static const char* const OptiX_MODEL[] = {"HDR", "AOV", "Temporal", 0};
+
 class OptiXDenoiser {
     public:
         OptiXDenoiser();
