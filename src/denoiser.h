@@ -24,6 +24,7 @@ class CGDenoiser: public DD::Image::PlanarIop
 
     bool m_albedo_connected = false;
     bool m_normal_connected = false;
+    bool m_motion_connected = false;
 
     bool m_deviceDirty = false;
     bool m_filterDirty = false;

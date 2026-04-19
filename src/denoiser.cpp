@@ -16,7 +16,6 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
     m_height = imageFormat.height();
     DD::Image::Box imageBounds = input0().format();
 
-
     auto bufferSize = m_width * m_height * 3 * sizeof(float);
 
     m_denoiserData.allocate(m_width, m_height, m_albedo_connected, m_normal_connected);
@@ -103,92 +102,98 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
 
 void CGDenoiser::knobs(DD::Image::Knob_Callback f) {
 
-    Enumeration_knob(f, &m_engine, Engine, "Engine");
+    Enumeration_knob(f, &m_engine, Engine, "engine", "Engine");
     Tooltip(f, "The hardward backend used for denoising");
 
     Divider(f);
 
-    BeginGroup(f, "oidn_group", "OIDN Settings");
-
     // OIDN
-    Enumeration_knob(f, &m_oidn->device_type, OIDN_Device, "Device");
+    Enumeration_knob(f, &m_oidn->device_type, OIDN_Device, "oidn_device", "Device");
     Tooltip(f, "The hardward backend used for denoising");
 
-    Enumeration_knob(f, &m_oidn->filter_type, OIDN_Filter, "Filter");
+    Enumeration_knob(f, &m_oidn->filter_type, OIDN_Filter, "oidn_filter", "Filter");
     Tooltip(f, "Filter method.");
 
-    Enumeration_knob(f, &m_oidn->filter_quality, OIDN_Quality, "Quality");
+    Enumeration_knob(f, &m_oidn->filter_quality, OIDN_Quality, "oidn_quality", "Quality");
     Tooltip(f, "Quality");
 
-    Enumeration_knob(f, &m_oidn->filter_mode, OIDN_Mode, "Mode");
+    Enumeration_knob(f, &m_oidn->filter_mode, OIDN_Mode, "oidn_mode", "Mode");
     Tooltip(f, "Use sRGB if your data is already gamma encoded.");
 
-    Float_knob(f, &m_oidn->filter_inputScale, "filter_inputScale", "Input Scale");
+    Float_knob(f, &m_oidn->filter_inputScale, "oidn_inputScale", "Input Scale");
     Tooltip(f, "Manuall scale the input values (usually 1.0).");
 
-    Bool_knob(f, &m_oidn->filter_directional, "filter_directional", "Directional");
+    Bool_knob(f, &m_oidn->filter_directional, "oidn_directional", "Directional");
     Tooltip(f, "Only used for RTLightmap filter.");
-
-    EndGroup(f);
     
     // OptiX
     #if OPTIX
 
-    BeginGroup(f, "optix_group", "OptiX Settings");
-
-    Enumeration_knob(f, &m_optix->model, OptiX_MODEL, "Model");
+    Enumeration_knob(f, &m_optix->model, OptiX_MODEL, "optix_model", "Model");
     Tooltip(f, "model type");
 
-    Float_knob(f, &m_optix->blend, "filter_blend", "Blend");
+    Float_knob(f, &m_optix->blend, "optix_blend", "Blend");
     Tooltip(f, "Blend. 1.0 is denoised.");
-
-    EndGroup(f);
 
     #endif
 }
 
-int CGDenoiser::knob_changed(DD::Image::Knob* k) { 
-    // Device changes
-    if (k->is("Engine") || k->is("Device")) { // Ensure this matches the internal name in knobs()
+int CGDenoiser::knob_changed(DD::Image::Knob* k) {
+    if (!k) return 0;
+
+    // --- Read CURRENT values from knobs (not member vars) ---
+    int engine = m_engine;
+    if (Knob* ek = knob("engine"))
+        engine = int(ek->get_value());
+
+    bool useOIDN = (engine == 0);
+
+    int filter = m_oidn->filter_type;
+    if (Knob* fk = knob("oidn_filter"))
+        filter = int(fk->get_value());
+
+    bool isRT = (filter == 0);
+
+    // --- Dirty flags ---
+    if (k->is("engine") || k->is("oidn_device"))
         m_deviceDirty = true;
-        m_filterDirty = true;
 
-        bool useOIDN = (m_engine == 0);
+    m_filterDirty = true;
 
-        if (knob("oidn_group"))
-            knob("oidn_group")->visible(useOIDN);
+    // --- OIDN knobs ---
+    const char* oidn_knobs[] = {
+        "oidn_device", "oidn_filter", "oidn_quality", 
+        "oidn_mode", "oidn_inputScale", "oidn_directional"
+    };
 
+    for (const char* name : oidn_knobs)
+    {
+        if (Knob* kk = knob(name))
+        {
+            bool v = useOIDN;
 
-        if (knob("optix_group"))
-            knob("optix_group")->visible(!useOIDN);
-        
-        return 1;
-    }    
+            if (strcmp(name, "oidn_mode") == 0)
+                v = (useOIDN && isRT);
 
-    // Filter/Workflow changes
-    if (k->is("Filter") || k->is("Mode") || k->is("Quality") || 
-        k->is("filter_inputScale") || k->is("filter_directional")) {
-        
-        m_filterDirty = true;
-        
-        // Use the actual value from your OIDN object to determine state
-        bool isRT = (m_oidn->filter_type == 0);
-        bool isLightmap = (m_oidn->filter_type == 1);
+            if (strcmp(name, "oidn_directional") == 0)
+                v = (useOIDN && !isRT);
 
-        // Workflow (HDR/sRGB) should only be visible for standard RT
-        if (knob("Mode")) {
-            knob("Mode")->visible(isRT);
+            kk->visible(v);
         }
-
-        // Directional should only be visible for Lightmap
-        if (knob("filter_directional")) {
-            knob("filter_directional")->visible(isLightmap); 
-        }
-
-        return 1;
     }
-    
-    return 0;
+
+    // --- OptiX knobs ---
+    #if OPTIX
+    const char* optix_knobs[] = { "optix_model", "optix_blend" };
+
+    for (const char* name : optix_knobs)
+    {
+        if (Knob* kk = knob(name))
+            kk->visible(!useOIDN);
+    }
+    #endif
+
+    return 1;
 }
 
 const char* CGDenoiser::input_label(int n, char*) const

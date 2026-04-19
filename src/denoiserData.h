@@ -63,6 +63,7 @@ public:
 
     float* getOutput() { return m_output.data(); }
     const float* getOutput() const { return m_output.data(); }
+    
 
     // Status checks
     bool hasAlbedo() const { return !m_albedo.empty(); }
