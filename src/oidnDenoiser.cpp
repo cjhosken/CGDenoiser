@@ -20,51 +20,51 @@ OIDNDenoiser::OIDNDenoiser() {
 
 OIDNDenoiser::~OIDNDenoiser() {}
 
-void OIDNDenoiser::setupDevice() {
+void OIDNDenoiser::setupDevice()
+{
+    // Destroy EVERYTHING tied to previous device
+    m_filter = nullptr;
+    m_colorBuffer = {};
+    m_outputBuffer = {};
+    m_albedoBuffer = {};
+    m_normalBuffer = {};
 
-    std::vector<oidn::DeviceType>device_list = {
+    m_device = nullptr;
+
+    std::vector<oidn::DeviceType> device_list = {
         oidn::DeviceType::Default
-
         #if OIDN_CPU
         , oidn::DeviceType::CPU
         #endif
-
         #if OIDN_CUDA
         , oidn::DeviceType::CUDA
         #endif
-
         #if OIDN_HIP
         , oidn::DeviceType::HIP
         #endif
-
         #if OIDN_METAL
         , oidn::DeviceType::METAL
         #endif
-
         #if OIDN_SYCL
         , oidn::DeviceType::SYCL
         #endif
     };
 
-    // 1. CRITICAL: Clear the filter and buffers FIRST
-    // This releases them from the OLD device before the old device is destroyed
-    m_filter = nullptr; 
-    
-    // 2. Destroy/Recreate Device
-    m_device = nullptr; // Releases the old device handle
-    
     m_device = oidn::newDevice(device_list[device_type]);
-    
-    // 3. Set error callback immediately
-    m_device.setErrorFunction([](void* userPtr, oidn::Error code, const char* message) {
-        std::cerr << "[OIDN Error] (" << (int)code << ") " << message << std::endl;
-    }, nullptr);
+
+    m_device.setErrorFunction(
+        [](void*, oidn::Error code, const char* msg)
+        {
+            std::cerr << "[OIDN] (" << (int)code << ") " << (msg ? msg : "") << "\n";
+        },
+        nullptr
+    );
 
     m_device.commit();
-    
-    // 4. Force filter and buffers to be recreated for the NEW device
-    m_filterDirty = true; 
+
+    m_filterDirty = true;
 }
+
 
 void OIDNDenoiser::setupFilter() {
     m_filter = nullptr; // KILL the old filter object immediately
@@ -110,6 +110,8 @@ void OIDNDenoiser::setupFilter() {
 
     m_filter.set("quality", quality[filter_quality]);
     m_filter.commit();
+
+    m_filterDirty = false;
 }
 
 
@@ -118,44 +120,45 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
     int w = data.getWidth();
     int h = data.getHeight();
 
-    if (!m_device || deviceDirty)
+    bool hasAlbedo = data.hasAlbedo();
+    bool hasNormal = data.hasNormal();
+
+    if (!m_device || deviceDirty || device_type != m_lastDeviceType)
     {
         setupDevice();
+        m_lastDeviceType = device_type;
     }
 
     if (!m_device)
         return;
 
-    if (filterDirty)
-        m_filter = nullptr; // KILL the old filter object immediately
-        m_filterDirty = true;
-    
     const bool dimsChanged = (w != m_width || h != m_height);
-    const bool auxChanged =
-        (data.hasAlbedo() != static_cast<bool>(m_albedoBuffer)) ||
-        (data.hasNormal() != static_cast<bool>(m_normalBuffer));
+    bool auxChanged =
+        (hasAlbedo != m_hasAlbedo ||
+         hasNormal != m_hasNormal);
+
+
+    bool filterChanged =
+        filterDirty ||
+        dimsChanged ||
+        auxChanged ||
+        (filter_type != m_lastFilterType);
+
+    m_width = w;
+    m_height = h;
+    m_hasAlbedo = hasAlbedo;
+    m_hasNormal = hasNormal;
+    m_lastFilterType = filter_type;
 
     if (dimsChanged || auxChanged || !m_colorBuffer || !m_outputBuffer)
     {
-        m_width = w;
-        m_height = h;
-
         size_t bufferSize = data.getColorSize();
 
         m_colorBuffer = m_device.newBuffer(bufferSize);
         m_outputBuffer = m_device.newBuffer(bufferSize);
 
-        if (data.hasAlbedo()) {
-            m_albedoBuffer = m_device.newBuffer(bufferSize);
-        } else {
-            m_albedoBuffer = {};
-        }
-
-        if (data.hasNormal()) {
-            m_normalBuffer = m_device.newBuffer(bufferSize);
-        } else {
-            m_normalBuffer = {};
-        }
+        m_albedoBuffer = hasAlbedo ? m_device.newBuffer(bufferSize) : oidn::BufferRef{};
+        m_normalBuffer = hasNormal ? m_device.newBuffer(bufferSize) : oidn::BufferRef{};
 
         m_filterDirty = true;
     }
@@ -176,6 +179,11 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
     if (data.hasNormal()) {
         m_normalBuffer.write(0, bufferSize, data.getNormal());
+    }
+
+    if (!m_filter) {
+        std::cerr << "[OIDN] Filter is null, skipping.\n";
+        return;
     }
 
     m_filter.execute();

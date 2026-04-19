@@ -72,6 +72,11 @@ class OIDNDenoiser {
 
         int m_defaultNumChannels;
         bool m_filterDirty;
+
+        bool m_hasAlbedo = false;
+        bool m_hasNormal = false;
+        int m_lastDeviceType = 0;
+        int m_lastFilterType = 0;
         
         
 }; // OIDNDENOISER_H

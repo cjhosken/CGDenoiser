@@ -63,8 +63,8 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
 
     if (m_motion_connected) {
         DD::Image::ChannelSet motionMask;
-        motionMask += DD::Image::Chan_Green;
         motionMask += DD::Image::Chan_Red;
+        motionMask += DD::Image::Chan_Green;
 
         fetchAndCopy(3, m_denoiserData.getMotion(), motionMask, 2);
     }

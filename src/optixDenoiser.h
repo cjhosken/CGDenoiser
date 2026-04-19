@@ -37,6 +37,13 @@ class OptiXDenoiser {
         
         CUcontext m_cuCtx = nullptr;
 
+        CUdeviceptr m_dColor = 0;
+        CUdeviceptr m_dOutput = 0;
+        CUdeviceptr m_dAlbedo = 0;
+        CUdeviceptr m_dNormal = 0;
+        CUdeviceptr m_dMotion = 0;
+        CUdeviceptr m_prevOutput = 0;
+
         CUdeviceptr m_dState = 0;
         CUdeviceptr m_dScratch = 0;
         CUdeviceptr m_dIntensity = 0;
@@ -45,11 +52,8 @@ class OptiXDenoiser {
         int m_scratchSize;
 
         bool m_initialized = false;
-
-        // Temporal
-        CUdeviceptr m_prevOutput = 0;
         bool m_hasPrev = false;
-        
+
 }; // OPTIXDENOISER_H
 
 #endif

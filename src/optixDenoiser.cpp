@@ -12,50 +12,95 @@ OptiXDenoiser::OptiXDenoiser() {
 
 OptiXDenoiser::~OptiXDenoiser() {cleanup();}
 
-void OptiXDenoiser::setupDevice() {
+void OptiXDenoiser::setupDevice()
+{
+    if (m_initialized)
+        return;
+
     std::cout << "[OptiX] Setting up Device..." << std::endl;
 
-    if (m_initialized) return;
-
-    std::cout << "[OptiX] Making Context..." << std::endl;
-
-    cudaFree(0);
-    cuCtxGetCurrent(&m_cuCtx);
-    if (!m_cuCtx) {
-        cuDevicePrimaryCtxRetain(&m_cuCtx, 0);
-        cuCtxPushCurrent(m_cuCtx);
+    // -------------------------
+    // 1. Init CUDA driver
+    // -------------------------
+    CUresult cuRes = cuInit(0);
+    if (cuRes != CUDA_SUCCESS) {
+        std::cerr << "[CUDA] cuInit failed\n";
+        return;
     }
 
+    // -------------------------
+    // 2. Select device explicitly
+    // -------------------------
+    int device = 0;
+    cudaSetDevice(device);
+
+    CUdevice cuDevice;
+    cuDeviceGet(&cuDevice, device);
+
+    // -------------------------
+    // 3. Create primary context
+    // -------------------------
+    CUcontext cuCtx;
+    cuDevicePrimaryCtxRetain(&cuCtx, cuDevice);
+    cuCtxSetCurrent(cuCtx);
+
+    m_cuCtx = cuCtx;
+
+    // -------------------------
+    // 4. Stream
+    // -------------------------
     cuStreamCreate(&m_stream, CU_STREAM_DEFAULT);
 
-    std::cout << "[OptiX] Context Created! Initialising OptiX..." << std::endl;
+    // -------------------------
+    // 5. OptiX init
+    // -------------------------
+    OptixResult optixRes = optixInit();
+    if (optixRes != OPTIX_SUCCESS) {
+        std::cerr << "[OptiX] optixInit failed\n";
+        return;
+    }
 
-    optixInit();
     OptixDeviceContextOptions options = {};
     options.logCallbackLevel = 4;
-    optixDeviceContextCreate(m_cuCtx, &options, &m_context);
 
+    OptixResult ctxRes = optixDeviceContextCreate(
+        m_cuCtx,
+        &options,
+        &m_context
+    );
+
+    if (ctxRes != OPTIX_SUCCESS) {
+        std::cerr << "[OptiX] Context creation failed\n";
+        return;
+    }
+
+    // -------------------------
+    // 6. Intensity buffer
+    // -------------------------
     cudaMalloc((void**)&m_dIntensity, sizeof(float));
-    m_initialized = true;
-    std::cout << "[OptiX] Device Created!" << std::endl;
 
+    m_initialized = true;
+
+    std::cout << "[OptiX] Device Created OK" << std::endl;
 }
 
 void OptiXDenoiser::setupDenoiser(int w, int h, bool dirty) {
     std::cout << "[OptiX] Setting up Denoiser..." << std::endl;
+    
 
     cuCtxSetCurrent(m_cuCtx);
 
-    if (!dirty) {
-        if (m_denoiser && w == m_width && h == m_height) return;
+    if (!dirty && m_denoiser && w == m_width && h == m_height) return;
+
+    if (m_denoiser)
+    {
+        optixDenoiserDestroy(m_denoiser);
+        m_denoiser = nullptr;
     }
-
-    if (m_denoiser) optixDenoiserDestroy(m_denoiser);
-
-    m_hasPrev = false;
 
     m_width = w;
     m_height = h;
+    m_hasPrev = false; // IMPORTANT: reset history only on resize/model change
 
     OptixDenoiserOptions options = {};
     OptixDenoiserModelKind kind;
@@ -67,9 +112,6 @@ void OptiXDenoiser::setupDenoiser(int w, int h, bool dirty) {
 
     OptixDenoiserSizes sizes;
     optixDenoiserComputeMemoryResources(m_denoiser, w, h, &sizes);
-
-    m_stateSize = sizes.stateSizeInBytes;
-    m_scratchSize = sizes.withoutOverlapScratchSizeInBytes;
 
     if (m_dState) cudaFree((void*)m_dState);
     if (m_dScratch) cudaFree((void*)m_dScratch);
@@ -90,124 +132,107 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 {
     std::cout << "[OptiX] Rendering..." << std::endl;
 
-    int w = data.getWidth();
-    int h = data.getHeight();
-
     cuCtxSetCurrent(m_cuCtx);
 
     setupDevice();
-    setupDenoiser(w, h, deviceDirty || filterDirty);
+    setupDenoiser(data.getWidth(), data.getHeight(), deviceDirty || filterDirty);
     
+    int w = data.getWidth();
+    int h = data.getHeight();
 
     std::cout << "[OptiX] Creating Buffers and Loading Data..." << std::endl;
 
     size_t pixelSize3 = sizeof(float) * 3;
     size_t pixelSize2 = sizeof(float) * 2;
 
-    size_t bufferSizeColor = (size_t)w * h * pixelSize3;
-    size_t bufferSizeFlow  = (size_t)w * h * pixelSize2;
+    size_t sizeColor = (size_t)w * h * pixelSize3;
+    size_t sizeFlow  = (size_t)w * h * pixelSize2;
 
-    CUdeviceptr d_color  = 0;
-    CUdeviceptr d_output = 0;
-    CUdeviceptr d_albedo = 0;
-    CUdeviceptr d_normal = 0;
-    CUdeviceptr d_motion = 0;
+    if (!m_dColor)
+        cudaMalloc((void**)&m_dColor, sizeColor);
 
-    cudaMalloc((void**)&d_color,  bufferSizeColor);
-    cudaMalloc((void**)&d_output, bufferSizeColor);
+    if (!m_dOutput)
+        cudaMalloc((void**)&m_dOutput, sizeColor);
 
-    if (!m_prevOutput || w != m_width || h != m_height)
-    {
-        if (m_prevOutput)
-            cudaFree((void*)m_prevOutput);
+    if (data.hasAlbedo() && !m_dAlbedo)
+        cudaMalloc((void**)&m_dAlbedo, sizeColor);
 
-        cudaMalloc((void**)&m_prevOutput, bufferSizeColor);
+    if (data.hasNormal() && !m_dNormal)
+        cudaMalloc((void**)&m_dNormal, sizeColor);
 
-        m_hasPrev = false;
-    }
+    if (data.hasMotion() && !m_dMotion)
+        cudaMalloc((void**)&m_dMotion, sizeFlow);
+
+    cudaMemcpy((void*)m_dColor, data.getColor(), sizeColor, cudaMemcpyHostToDevice);
 
     if (data.hasAlbedo())
-        cudaMalloc((void**)&d_albedo, bufferSizeColor);
+        cudaMemcpy((void*)m_dAlbedo, data.getAlbedo(), sizeColor, cudaMemcpyHostToDevice);
 
     if (data.hasNormal())
-        cudaMalloc((void**)&d_normal, bufferSizeColor);
+        cudaMemcpy((void*)m_dNormal, data.getNormal(), sizeColor, cudaMemcpyHostToDevice);
 
     if (data.hasMotion())
-        cudaMalloc((void**)&d_motion, bufferSizeFlow);
-
-    cudaMemcpy((void*)d_color, data.getColor(), bufferSizeColor, cudaMemcpyHostToDevice);
-
-    if (!m_hasPrev)
-    {
-        cudaMemcpy((void*)m_prevOutput, (void*)d_color, bufferSizeColor, cudaMemcpyDeviceToDevice);
-        m_hasPrev = true;
-    }
-
-    if (data.hasAlbedo())
-        cudaMemcpy((void*)d_albedo, data.getAlbedo(), bufferSizeColor, cudaMemcpyHostToDevice);
-
-    if (data.hasNormal())
-        cudaMemcpy((void*)d_normal, data.getNormal(), bufferSizeColor, cudaMemcpyHostToDevice);
-    
-    if (data.hasMotion())
-        cudaMemcpy((void*)d_motion, data.getMotion(), bufferSizeFlow, cudaMemcpyHostToDevice);
+        cudaMemcpy((void*)m_dMotion, data.getMotion(), sizeFlow, cudaMemcpyHostToDevice);
 
 
     std::cout << "[OptiX] Got Data! Prepping Denoiser..." << std::endl;
 
-    OptixImage2D inputImage = {};
-    inputImage.data = d_color;
-    inputImage.width = w;
-    inputImage.height = h;
-    inputImage.rowStrideInBytes = w * pixelSize3;
-    inputImage.pixelStrideInBytes = pixelSize3;
-    inputImage.format = OPTIX_PIXEL_FORMAT_FLOAT3;
+    // ----------------------------
+    // Build OptiX images
+    // ----------------------------
+    OptixImage2D input = {};
+    input.data = m_dColor;
+    input.width = w;
+    input.height = h;
+    input.rowStrideInBytes = w * pixelSize3;
+    input.pixelStrideInBytes = pixelSize3;
+    input.format = OPTIX_PIXEL_FORMAT_FLOAT3;
 
-    OptixImage2D outputImage = {};
-    outputImage.data = d_output;
-    outputImage.width = w;
-    outputImage.height = h;
-    outputImage.rowStrideInBytes = w * pixelSize3;
-    outputImage.pixelStrideInBytes = pixelSize3;
-    outputImage.format = OPTIX_PIXEL_FORMAT_FLOAT3;
+    OptixImage2D output = {};
+    output.data = m_dOutput;
+    output.width = w;
+    output.height = h;
+    output.rowStrideInBytes = w * pixelSize3;
+    output.pixelStrideInBytes = pixelSize3;
+    output.format = OPTIX_PIXEL_FORMAT_FLOAT3;
 
-    OptixImage2D albedoImage = {};
+    OptixImage2D albedo = {};
     if (data.hasAlbedo())
     {
-        albedoImage.data = d_albedo;
-        albedoImage.width = w;
-        albedoImage.height = h;
-        albedoImage.rowStrideInBytes = w * pixelSize3;
-        albedoImage.pixelStrideInBytes = pixelSize3;
-        albedoImage.format = OPTIX_PIXEL_FORMAT_FLOAT3;
+        albedo.data = m_dAlbedo;
+        albedo.width = w;
+        albedo.height = h;
+        albedo.format = OPTIX_PIXEL_FORMAT_FLOAT3;
+        albedo.rowStrideInBytes = w * pixelSize3;
+        albedo.pixelStrideInBytes = pixelSize3;
     }
 
-    OptixImage2D normalImage = {};
+    OptixImage2D normal = {};
     if (data.hasNormal())
     {
-        normalImage.data = d_normal;
-        normalImage.width = w;
-        normalImage.height = h;
-        normalImage.rowStrideInBytes = w * pixelSize3;
-        normalImage.pixelStrideInBytes = pixelSize3;
-        normalImage.format = OPTIX_PIXEL_FORMAT_FLOAT3;
+        normal.data = m_dNormal;
+        normal.width = w;
+        normal.height = h;
+        normal.format = OPTIX_PIXEL_FORMAT_FLOAT3;
+        normal.rowStrideInBytes = w * pixelSize3;
+        normal.pixelStrideInBytes = pixelSize3;
     }
 
-    OptixImage2D flowImage = {};
+    OptixImage2D flow = {};
     if (data.hasMotion())
     {
-        flowImage.data = d_motion;
-        flowImage.width = w;
-        flowImage.height = h;
-        flowImage.rowStrideInBytes = w * pixelSize2;
-        flowImage.pixelStrideInBytes = pixelSize2;
-        flowImage.format = OPTIX_PIXEL_FORMAT_FLOAT2;
+        flow.data = m_dMotion;
+        flow.width = w;
+        flow.height = h;
+        flow.format = OPTIX_PIXEL_FORMAT_FLOAT2;
+        flow.rowStrideInBytes = w * pixelSize2;
+        flow.pixelStrideInBytes = pixelSize2;
     }
 
     optixDenoiserComputeIntensity(
         m_denoiser,
         m_stream,
-        &inputImage,
+        &input,
         m_dIntensity,
         m_dScratch,
         m_scratchSize
@@ -218,30 +243,39 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
     params.blendFactor = 1.0f - blend;
 
     OptixDenoiserLayer layer = {};
-    layer.input  = inputImage;
-    layer.output = outputImage;
+    layer.input  = input;
+    layer.output = output;
 
-    OptixDenoiserGuideLayer guideLayer = {};
-    if (data.hasAlbedo())
-        guideLayer.albedo = albedoImage;
+    OptixDenoiserGuideLayer guide = {};
+    if (data.hasAlbedo() && m_dAlbedo)
+        guide.albedo = albedo;
 
-    if (data.hasNormal())
-        guideLayer.normal = normalImage;
+    if (data.hasNormal() && m_dNormal)
+        guide.normal = normal;
 
-    if (model == 2) {
-        OptixImage2D prevOutputImage = {};
-        prevOutputImage.data = m_prevOutput;
-        prevOutputImage.width = w;
-        prevOutputImage.height = h;
-        prevOutputImage.rowStrideInBytes = w * pixelSize3;
-        prevOutputImage.pixelStrideInBytes = pixelSize3;
-        prevOutputImage.format = OPTIX_PIXEL_FORMAT_FLOAT3;
+    if (data.hasMotion() && m_dMotion)
+        guide.flow = flow;
 
-        layer.previousOutput = prevOutputImage;
+    // ----------------------------
+    // TEMPORAL FIX (CRITICAL)
+    // ----------------------------
+    if (model == 2)
+    {
+        if (!m_prevOutput)
+        {
+            cudaMalloc((void**)&m_prevOutput, sizeColor);
+            cudaMemset((void*)m_prevOutput, 0, sizeColor);
+        }
 
-        if (data.hasMotion())
-            guideLayer.flow = flowImage;
-        
+        OptixImage2D prev = {};
+        prev.data = m_prevOutput;
+        prev.width = w;
+        prev.height = h;
+        prev.rowStrideInBytes = w * pixelSize3;
+        prev.pixelStrideInBytes = pixelSize3;
+        prev.format = OPTIX_PIXEL_FORMAT_FLOAT3;
+
+        layer.previousOutput = prev;
     }
 
     std::cout << "[OptiX] Denoiser Prepped! Running Denoiser..." << std::endl;
@@ -252,7 +286,7 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
         &params,
         m_dState,
         m_stateSize,
-        &guideLayer,
+        &guide,
         &layer,
         1,
         0, 0,
@@ -262,23 +296,16 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
     cudaDeviceSynchronize();
 
-    cudaMemcpy((void*)m_prevOutput, (void*)d_output, bufferSizeColor, cudaMemcpyDeviceToDevice);
+    cudaMemcpy(data.getOutput(), (void*)m_dOutput, sizeColor, cudaMemcpyDeviceToHost);
 
-    std::cout << "[OptiX] Denoised! Writing Data..." << std::endl;
-
-    cudaMemcpy(data.getOutput(), (void*)d_output, bufferSizeColor, cudaMemcpyDeviceToHost);
-
-    cudaFree((void*)d_color);
-    cudaFree((void*)d_output);
-
-    if (d_albedo) cudaFree((void*)d_albedo);
-    if (d_normal) cudaFree((void*)d_normal);
-    if (d_motion) cudaFree((void*)d_motion);
-
-    if (m_prevOutput)
+    if (model == 2)
     {
-        cudaFree((void*)m_prevOutput);
-        m_prevOutput = 0;
+        cudaMemcpy(
+            (void*)m_prevOutput,
+            (void*)m_dOutput,
+            sizeColor,
+            cudaMemcpyDeviceToDevice
+        );
     }
 
     std::cout << "[OptiX] Finished!" << std::endl;
