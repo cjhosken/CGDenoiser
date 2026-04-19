@@ -48,7 +48,7 @@ class OptiXDenoiser {
 
         // Temporal
         CUdeviceptr m_prevOutput = 0;
-
+        bool m_hasPrev = false;
         
 }; // OPTIXDENOISER_H
 
