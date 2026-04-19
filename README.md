@@ -1,6 +1,15 @@
-# CGDenoiser
+<h1 align="center">🪄 CG Denoiser</h1>
 
-A Nuke plugin for high-quality denoising of CG renders using **Intel Open Image Denoise (OIDN)** and **NVIDIA OptiX**.
+<div align="center">
+  <img src="https://img.shields.io/badge/C++-%2300599C.svg?style=for-the-badge&logo=c%2B%2B&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Nuke-FCC624?style=for-the-badge&logo=nuke&logoColor=black"/>
+</div>
+
+<div align="center" style="margin:1rem">
+<img src="./images/cover.png" width="50%">
+</div>
+
+A **Nuke Plugin** for high-quality denoising of CG renders using **Intel Open Image Denoise (OIDN)** and **NVIDIA OptiX**.
 
 Designed for production workflows with support for auxiliary buffers such as **albedo**, **normal**, and **motion vectors** (OptiX temporal).
 
