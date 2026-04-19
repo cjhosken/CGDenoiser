@@ -1,42 +1,83 @@
 # CGDenoiser
-Nuke plugin for denoising CG renders with OIDN and OptiX.
 
-Supported Versions:
+A Nuke plugin for high-quality denoising of CG renders using **Intel Open Image Denoise (OIDN)** and **NVIDIA OptiX**.
 
-**Nuke 17.0v1**
+Designed for production workflows with support for auxiliary buffers such as **albedo**, **normal**, and **motion vectors** (OptiX temporal).
 
-place CGDenoiser in `.nuke/`
+---
 
-## Installation
+## ✨ Features
 
-### Building from Source
+- 🎯 High-quality denoising for CG renders
+- ⚡ Dual backend support:
+  - Intel OIDN (CPU / GPU depending on build)
+  - NVIDIA OptiX (GPU accelerated)
+- 🧠 Temporal denoising support (OptiX)
+- 🎨 Auxiliary buffers:
+  - Albedo
+  - Normal
+  - Motion vectors (for temporal stability)
+- 🔧 Configurable quality, device, and filtering modes
 
-First, run either `building/build.bat` or `building/build.sh` to build the dependencies.
+---
 
-Then, run either `install.bat` or `install.sh` to build the plugin.
+## 🧩 Supported Versions
 
-Once complete, you should see `plugins/CGDenoiser`.
+- **Nuke 17.0v1**
+
+Other versions may be suported, however some manual fixing will be needed.
+
+---
+
+## 📦 Installation
+
+See `BUILDING.md` for information about installating.
+
+## 🧠 Usage
+
+### Inputs
+
+All inputs at the moment require being shuffled into RGB space. You will also need to denoise and copy the Alpha over seperately.
+
+| Input   | Description                                      |
+|---------|--------------------------------------------------|
+| `color` | Main beauty render                               |
+| `albedo`| Diffuse albedo pass (optional)                   |
+| `normal`| World or camera space normals (optional)         |
+| `motion`| Motion vectors (required for temporal OptiX)     |
 
 
-## Build Commands
+### Settings
 
-`-DNO_OPTIX=ON` Build without OptiX Enabled
-`-DNO_OIDN_CPU=OFF`
-`-DNO_OIDN_CUDA=ON`
-`-DNO_OIDN_HIP=ON`
-`-DNO_OIDN_METAL=ON`
-`-DNO_OIDN_SYCL=ON`
+| Setting  | Type        | Description                          |
+|----------|------------|--------------------------------------|
+| `Engine` | Enumeration | The technique used for denoising     |
 
-### Adding to Nuke
+| Setting            | Type        | Description |
+|--------------------|------------|-------------|
+| `Device`      | Enumeration | The hardware backend used for OIDN denoising |
+| `Filter`      | Enumeration | The filter method used for OIDN denoising |
+| `Quality`     | Enumeration | Image quality |
+| `Mode`        | Enumeration | Input image encoding. Use HDR unless the input is sRGB (2.2 gamma) or linear, in which case use sRGB. Output follows the same encoding |
+| `Clean Aux`       | Boolean     | Denoise auxiliary features (albedo, normal) |
+| `Input Scale`  | Float       | Scales input values before filtering without affecting output range. Useful for mapping HDR values to expected ranges |
+| `Directional` | Boolean     | Indicates input contains normalized directional lightmap coefficients (typically in [-1, 1]) |
 
-Copy `plugins/CGDenoiser` into your NUKE_PATH (usually `.nuke`)
+| Setting        | Type        | Description |
+|----------------|------------|-------------|
+| `Model`  | Enumeration | The method used for OptiX denoising. Temporal mode requires motion vectors |
+| `Blend`  | Float       | Denoising strength. 1.0 = fully denoised |
 
-This needs to be added to `.nuke/init.py`
-```py
-import nuke
-import os
 
-nuke.pluginAddPath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "CGDenoiser"))
-```
+### Issues
 
-Copy `scripts/menu.py` into `.nuke/menu.py`
+If you come across any Issues / Bugs, or are able to build the plugin for other versions of Nuke, please [Create an Issue](https://github.com/cjhosken/CGDenoiser/issues).
+
+
+## 📄 License
+
+This project was created under the MIT license.
+
+## 👤 Author
+
+Special thanks to [https://github.com/mateuszwojt/NukeCGDenoiser](https://github.com/mateuszwojt/NukeCGDenoiser) and [https://github.com/twins-annning/NukeOIDNDenoise](https://github.com/twins-annning/NukeOIDNDenoise) for the launching off point for this project. Without your code I definitely woudn't have made it this far.
