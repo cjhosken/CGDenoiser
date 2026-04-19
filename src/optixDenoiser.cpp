@@ -120,9 +120,6 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
     if (data.hasNormal())
         cudaMalloc((void**)&d_normal, bufferSizeColor);
 
-    if (data.hasMotion())
-        cudaMalloc((void**)&d_motion, bufferSizeFlow);
-
     cudaMemcpy((void*)d_color, data.getColor(), bufferSizeColor, cudaMemcpyHostToDevice);
 
     if (data.hasAlbedo())
@@ -131,8 +128,6 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
     if (data.hasNormal())
         cudaMemcpy((void*)d_normal, data.getNormal(), bufferSizeColor, cudaMemcpyHostToDevice);
 
-    if (data.hasMotion())
-        cudaMemcpy((void*)d_motion, data.getMotion(), bufferSizeFlow, cudaMemcpyHostToDevice);
 
     std::cout << "[OptiX] Got Data! Prepping Denoiser..." << std::endl;
 
@@ -173,18 +168,7 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
         normalImage.pixelStrideInBytes = pixelSize3;
         normalImage.format = OPTIX_PIXEL_FORMAT_FLOAT3;
     }
-
-    OptixImage2D flowImage = {};
-    if (data.hasMotion())
-    {
-        flowImage.data = d_motion;
-        flowImage.width = w;
-        flowImage.height = h;
-        flowImage.rowStrideInBytes = w * pixelSize2;
-        flowImage.pixelStrideInBytes = pixelSize2;
-        flowImage.format = OPTIX_PIXEL_FORMAT_FLOAT2;
-    }
-
+    
     optixDenoiserComputeIntensity(
         m_denoiser,
         m_stream,
@@ -208,9 +192,6 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
     if (data.hasNormal())
         guideLayer.normal = normalImage;
-
-    if (data.hasMotion())
-        guideLayer.flow = flowImage;
 
     std::cout << "[OptiX] Denoiser Prepped! Running Denoiser..." << std::endl;
 
@@ -239,7 +220,6 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
     if (d_albedo) cudaFree((void*)d_albedo);
     if (d_normal) cudaFree((void*)d_normal);
-    if (d_motion) cudaFree((void*)d_motion);
 
     std::cout << "[OptiX] Finished!" << std::endl;
 

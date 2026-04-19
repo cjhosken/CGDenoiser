@@ -103,37 +103,40 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
 void CGDenoiser::knobs(DD::Image::Knob_Callback f) {
 
     Enumeration_knob(f, &m_engine, Engine, "engine", "Engine");
-    Tooltip(f, "The hardward backend used for denoising");
+    Tooltip(f, "The technique used for denoising.");
 
     Divider(f);
 
     // OIDN
     Enumeration_knob(f, &m_oidn->device_type, OIDN_Device, "oidn_device", "Device");
-    Tooltip(f, "The hardward backend used for denoising");
+    Tooltip(f, "The hardware backend used for OIDN denoising");
 
     Enumeration_knob(f, &m_oidn->filter_type, OIDN_Filter, "oidn_filter", "Filter");
-    Tooltip(f, "Filter method.");
+    Tooltip(f, "The filter method used for OIDN denoising. ");
 
     Enumeration_knob(f, &m_oidn->filter_quality, OIDN_Quality, "oidn_quality", "Quality");
-    Tooltip(f, "Quality");
+    Tooltip(f, "Image quality.");
 
     Enumeration_knob(f, &m_oidn->filter_mode, OIDN_Mode, "oidn_mode", "Mode");
-    Tooltip(f, "Use sRGB if your data is already gamma encoded.");
+    Tooltip(f, "The input image encoding. Use HDR unless the main input image is encoded with the sRGB (or 2.2 gamma) curve or is linear; in which case use sRGB; The output will be encoded with the same curve.");
+
+    Bool_knob(f, &m_oidn->filter_cleanAux, "oidn_clean", "Clean Aux");
+    Tooltip(f, "Denoise the auxilliary features (albedo, normal).");
 
     Float_knob(f, &m_oidn->filter_inputScale, "oidn_inputScale", "Input Scale");
-    Tooltip(f, "Manuall scale the input values (usually 1.0).");
+    Tooltip(f, "Scales values in the main input image before filtering, without scaling the output too, which can be used to map color or auxiliary feature values to the expected range, e.g. for mapping HDR values to physical units (which affects the quality of the output but not the range of the output values); if set to NaN, the scale is computed implicitly for HDR images or set to 1 otherwise.");
 
     Bool_knob(f, &m_oidn->filter_directional, "oidn_directional", "Directional");
-    Tooltip(f, "Only used for RTLightmap filter.");
+    Tooltip(f, "Whether the input contains normalized coefficients (in [-1, 1]) of a directional lightmap (e.g. normalized L1 or higher spherical harmonics band with the L0 band divided out); if the range of the coefficients is different from [-1, 1], the inputScale parameter can be used to adjust the range without changing the stored values.");
     
     // OptiX
     #if OPTIX
 
     Enumeration_knob(f, &m_optix->model, OptiX_MODEL, "optix_model", "Model");
-    Tooltip(f, "model type");
+    Tooltip(f, "The method used for OptiX denoising. Temporal requires motionvectors.");
 
     Float_knob(f, &m_optix->blend, "optix_blend", "Blend");
-    Tooltip(f, "Blend. 1.0 is denoised.");
+    Tooltip(f, "Denoising amount. 1.0 is completely denoised.");
 
     #endif
 }
@@ -163,7 +166,7 @@ int CGDenoiser::knob_changed(DD::Image::Knob* k) {
     // --- OIDN knobs ---
     const char* oidn_knobs[] = {
         "oidn_device", "oidn_filter", "oidn_quality", 
-        "oidn_mode", "oidn_inputScale", "oidn_directional"
+        "oidn_mode", "oidn_inputScale", "oidn_directional", "oidn_clean"
     };
 
     for (const char* name : oidn_knobs)

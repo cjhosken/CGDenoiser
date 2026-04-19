@@ -27,7 +27,6 @@ void DenoiserData::allocate(int width, int height, bool hasAlbedo, bool hasNorma
 
     // Calculate buffer sizes
     m_colorSize = static_cast<size_t>(width) * height * 3 * sizeof(float);
-    m_motionSize = static_cast<size_t>(width) * height * 2 * sizeof(float);
 
     // Allocate color and output buffers (always needed)
     m_color.resize(width * height * 3, 0.0f);
