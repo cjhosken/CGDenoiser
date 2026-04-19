@@ -4,6 +4,19 @@
 #include "oidnDenoiser.h"
 #include "denoiserData.h"
 
+#if OPTIX
+#include "optixDenoiser.h"
+#endif
+
+static const char* const Engine[] = {
+    "OpenImageDenoiser (OIDN)",
+    
+    #if OPTIX
+    "OptiX",
+    #endif
+    
+    0};
+
 class CGDenoiser: public DD::Image::PlanarIop
 {
     unsigned int m_width;
@@ -15,7 +28,14 @@ class CGDenoiser: public DD::Image::PlanarIop
     bool m_deviceDirty = false;
     bool m_filterDirty = false;
 
+    int m_engine = 0; // 0 = OIDN, 1 = OptiX
+
     OIDNDenoiser* m_oidn;
+
+    #if OPTIX
+    OptiXDenoiser* m_optix;
+    #endif
+
     DenoiserData m_denoiserData;
 
     public:
@@ -27,6 +47,10 @@ class CGDenoiser: public DD::Image::PlanarIop
             m_height = 0;
 
             m_oidn = new OIDNDenoiser();
+
+            #if OPTIX
+            m_optix = new OptiXDenoiser();
+            #endif
         }
 
         const char* input_label(int n, char*) const override;

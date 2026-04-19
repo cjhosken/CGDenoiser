@@ -84,14 +84,17 @@ void OptiXDenoiser::setupDenoiser(int w, int h, bool dirty) {
 
 }
 
-void OptiXDenoiser::run(float* color, float* albedo, float* normal, float* motion, int w, int h, bool dirty)
+void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 {
     std::cout << "[OptiX] Rendering..." << std::endl;
+
+    int w = data.getWidth();
+    int h = data.getHeight();
 
     cuCtxSetCurrent(m_cuCtx);
 
     setupDevice();
-    setupDenoiser(w, h, dirty);
+    setupDenoiser(w, h, deviceDirty || filterDirty);
 
     std::cout << "[OptiX] Creating Buffers and Loading Data..." << std::endl;
 
@@ -110,25 +113,25 @@ void OptiXDenoiser::run(float* color, float* albedo, float* normal, float* motio
     cudaMalloc((void**)&d_color,  bufferSizeColor);
     cudaMalloc((void**)&d_output, bufferSizeColor);
 
-    if (albedo)
+    if (data.hasAlbedo())
         cudaMalloc((void**)&d_albedo, bufferSizeColor);
 
-    if (normal)
+    if (data.hasNormal())
         cudaMalloc((void**)&d_normal, bufferSizeColor);
 
-    if (motion)
-        cudaMalloc((void**)&d_motion, bufferSizeFlow);
+    //if (motion)
+    //    cudaMalloc((void**)&d_motion, bufferSizeFlow);
 
-    cudaMemcpy((void*)d_color, color, bufferSizeColor, cudaMemcpyHostToDevice);
+    cudaMemcpy((void*)d_color, data.getColor(), bufferSizeColor, cudaMemcpyHostToDevice);
 
-    if (albedo)
-        cudaMemcpy((void*)d_albedo, albedo, bufferSizeColor, cudaMemcpyHostToDevice);
+    if (data.hasAlbedo())
+        cudaMemcpy((void*)d_albedo, data.getAlbedo(), bufferSizeColor, cudaMemcpyHostToDevice);
 
-    if (normal)
-        cudaMemcpy((void*)d_normal, normal, bufferSizeColor, cudaMemcpyHostToDevice);
+    if (data.hasNormal())
+        cudaMemcpy((void*)d_normal, data.getNormal(), bufferSizeColor, cudaMemcpyHostToDevice);
 
-    if (motion)
-        cudaMemcpy((void*)d_motion, motion, bufferSizeFlow, cudaMemcpyHostToDevice);
+    //if (motion)
+    //    cudaMemcpy((void*)d_motion, motion, bufferSizeFlow, cudaMemcpyHostToDevice);
 
     std::cout << "[OptiX] Got Data! Prepping Denoiser..." << std::endl;
 
@@ -149,7 +152,7 @@ void OptiXDenoiser::run(float* color, float* albedo, float* normal, float* motio
     outputImage.format = OPTIX_PIXEL_FORMAT_FLOAT3;
 
     OptixImage2D albedoImage = {};
-    if (albedo)
+    if (data.hasAlbedo())
     {
         albedoImage.data = d_albedo;
         albedoImage.width = w;
@@ -160,7 +163,7 @@ void OptiXDenoiser::run(float* color, float* albedo, float* normal, float* motio
     }
 
     OptixImage2D normalImage = {};
-    if (normal)
+    if (data.hasNormal())
     {
         normalImage.data = d_normal;
         normalImage.width = w;
@@ -170,16 +173,16 @@ void OptiXDenoiser::run(float* color, float* albedo, float* normal, float* motio
         normalImage.format = OPTIX_PIXEL_FORMAT_FLOAT3;
     }
 
-    OptixImage2D flowImage = {};
-    if (motion)
-    {
-        flowImage.data = d_motion;
-        flowImage.width = w;
-        flowImage.height = h;
-        flowImage.rowStrideInBytes = w * pixelSize2;
-        flowImage.pixelStrideInBytes = pixelSize2;
-        flowImage.format = OPTIX_PIXEL_FORMAT_FLOAT2;
-    }
+    //OptixImage2D flowImage = {};
+    //if (motion)
+    //{
+    //    flowImage.data = d_motion;
+    //    flowImage.width = w;
+    //    flowImage.height = h;
+    //    flowImage.rowStrideInBytes = w * pixelSize2;
+    //    flowImage.pixelStrideInBytes = pixelSize2;
+    //    flowImage.format = OPTIX_PIXEL_FORMAT_FLOAT2;
+    //}
 
     optixDenoiserComputeIntensity(
         m_denoiser,
@@ -199,14 +202,14 @@ void OptiXDenoiser::run(float* color, float* albedo, float* normal, float* motio
     layer.output = outputImage;
 
     OptixDenoiserGuideLayer guideLayer = {};
-    if (albedo)
+    if (data.hasAlbedo())
         guideLayer.albedo = albedoImage;
 
-    if (normal)
+    if (data.hasNormal())
         guideLayer.normal = normalImage;
 
-    if (motion)
-        guideLayer.flow = flowImage;
+    //if (motion)
+    //    guideLayer.flow = flowImage;
 
     std::cout << "[OptiX] Denoiser Prepped! Running Denoiser..." << std::endl;
 
@@ -228,7 +231,7 @@ void OptiXDenoiser::run(float* color, float* albedo, float* normal, float* motio
 
     std::cout << "[OptiX] Denoised! Writing Data..." << std::endl;
 
-    cudaMemcpy(color, (void*)d_output, bufferSizeColor, cudaMemcpyDeviceToHost);
+    cudaMemcpy(data.getOutput(), (void*)d_output, bufferSizeColor, cudaMemcpyDeviceToHost);
 
     cudaFree((void*)d_color);
     cudaFree((void*)d_output);

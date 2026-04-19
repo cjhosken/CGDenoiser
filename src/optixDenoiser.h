@@ -4,19 +4,19 @@
 #include <iostream>
 #include "DDImage/PlanarIop.h"
 
+#include "denoiserData.h"
+
 #include <optix.h>
 #include <optix_stubs.h>
 
-
 using namespace DD::Image;
-
 
 class OptiXDenoiser {
     public:
         OptiXDenoiser();
         ~OptiXDenoiser();
 
-        void run(float* color, float* albedo, float* normal, float* motion, int w, int h, bool dirty);
+        void run(DenoiserData& data, bool deviceDirty, bool filterDirty);
 
         int model; // 0 = HDR; 1 = LDR; 2 = TEMPORAL
         float blend;

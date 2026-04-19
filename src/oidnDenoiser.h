@@ -36,6 +36,7 @@ static const char* const OIDN_Device[] = {
 
 static const char* const OIDN_Filter[] = {"RT", "RTLightmap", 0};
 static const char* const OIDN_Quality[] = {"Default", "Fast", "Balanced", "High", 0};
+static const char* const OIDN_Mode[] = {"None", "sRGB", "HDR"};
 
 class OIDNDenoiser {
     public:
@@ -50,11 +51,10 @@ class OIDNDenoiser {
         int device_type; // 0=Default, 1=CPU, 2=CUDA, 3=HIP, 4=Metal, 5=SYCL
         int filter_type; // 0 = RT, 1 = RTLightmap
 
-        bool filter_hdr;
-        bool filter_srgb;
         float filter_inputScale;
         bool filter_cleanAux;
         int filter_quality; // 0 = Default, 1 = Fast, 2 = Balanced, 3 = High
+        int filter_mode; // 0 = None, 1 = sRGB, 2 = HDR
 
         bool filter_directional; // Only for RTLightmap
 

@@ -7,10 +7,9 @@ OIDNDenoiser::OIDNDenoiser() {
 
     m_filterDirty = true;
     device_type = 0;
-
     filter_type = 0;
-    filter_hdr = false;
-    filter_srgb = false;
+    filter_mode = 0;
+
     filter_inputScale = 1.0;
     filter_cleanAux = false;
     filter_quality = 0;
@@ -22,14 +21,59 @@ OIDNDenoiser::OIDNDenoiser() {
 OIDNDenoiser::~OIDNDenoiser() {}
 
 void OIDNDenoiser::setupDevice() {
-    // OIDN device creation causes crashes in Nuke environment - disabled for now
-    std::cout << "Making new Device" << std::endl;
-    m_device = oidnNewDevice(OIDNDeviceType::OIDN_DEVICE_TYPE_CPU);
+
+    std::vector<oidn::DeviceType>device_list = {
+        oidn::DeviceType::Default
+
+        #if OIDN_CPU
+        , oidn::DeviceType::CPU
+        #endif
+
+        #if OIDN_CUDA
+        , oidn::DeviceType::CUDA
+        #endif
+
+        #if OIDN_HIP
+        , oidn::DeviceType::HIP
+        #endif
+
+        #if OIDN_METAL
+        , oidn::DeviceType::METAL
+        #endif
+
+        #if OIDN_SYCL
+        , oidn::DeviceType::SYCL
+        #endif
+    };
+
+    // 1. CRITICAL: Clear the filter and buffers FIRST
+    // This releases them from the OLD device before the old device is destroyed
+    m_filter = nullptr; 
+    
+    // 2. Destroy/Recreate Device
+    m_device = nullptr; // Releases the old device handle
+    
+    m_device = oidn::newDevice(device_list[device_type]);
+    
+    // 3. Set error callback immediately
+    m_device.setErrorFunction([](void* userPtr, oidn::Error code, const char* message) {
+        std::cerr << "[OIDN Error] (" << (int)code << ") " << message << std::endl;
+    }, nullptr);
+
     m_device.commit();
+    
+    // 4. Force filter and buffers to be recreated for the NEW device
+    m_filterDirty = true; 
 }
 
 void OIDNDenoiser::setupFilter() {
+    m_filter = nullptr; // KILL the old filter object immediately
+
     m_filter = m_device.newFilter(OIDN_Filter[filter_type]);
+    if (!m_filter) {
+        std::cerr << "CRITICAL: OIDN Failed to create filter type: " << OIDN_Filter[filter_type] << std::endl;
+        return;
+    }
 
     m_filter.setImage("color", m_colorBuffer, oidn::Format::Float3, m_width, m_height);
     m_filter.setImage("output", m_outputBuffer, oidn::Format::Float3, m_width, m_height);
@@ -46,8 +90,8 @@ void OIDNDenoiser::setupFilter() {
 
     if (filter_type == 0)
     {
-        m_filter.set("hdr", filter_hdr);
-        m_filter.set("srgb", filter_srgb);
+        m_filter.set("hdr", filter_mode == 2);
+        m_filter.set("srgb", filter_mode == 1);
     }
     else if (filter_type == 1)
     {
@@ -77,13 +121,13 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
     if (!m_device || deviceDirty)
     {
         setupDevice();
-        m_filterDirty = true;
     }
 
     if (!m_device)
         return;
 
     if (filterDirty)
+        m_filter = nullptr; // KILL the old filter object immediately
         m_filterDirty = true;
     
     const bool dimsChanged = (w != m_width || h != m_height);

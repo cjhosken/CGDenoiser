@@ -1,5 +1,6 @@
 #include "denoiser.h"
 #include "DDImage/Black.h"
+#include "DDImage/Knobs.h"
 
 
 void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
@@ -13,65 +14,66 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
     DD::Image::Format imageFormat = input0().format();
     m_width = imageFormat.width();
     m_height = imageFormat.height();
+    DD::Image::Box imageBounds = input0().format();
+
 
     auto bufferSize = m_width * m_height * 3 * sizeof(float);
 
-    m_denoiserData.allocate(m_width, m_height, false, false);
+    m_denoiserData.allocate(m_width, m_height, m_albedo_connected, m_normal_connected);
     
-    DD::Image::Box imageBounds = input0().format();
-    DD::Image::Iop* colorInput = dynamic_cast<DD::Image::Iop*>(input(0));
-    
-    if (colorInput == nullptr) {
-        std::cerr << "[CGDenoiser] Error: no color input!" << std::endl;
-        return;
-    }
-    
-    if (!colorInput->tryValidate(true)) {
-        std::cerr << "[CGDenoiser] Error: color input validation failed!" << std::endl;
-        return;
-    }
-    
-    colorInput->request(imageBounds.x(), imageBounds.y(), imageBounds.r(), imageBounds.t(), 
-                       DD::Image::Mask_RGB, 0);
-    
-    DD::Image::ImagePlane colorPlane(imageBounds, false, DD::Image::Mask_RGB, 3);
-    colorInput->fetchPlane(colorPlane);
-    
-    const float* srcData = static_cast<const float*>(colorPlane.readable());
-    
-    if (!srcData) {
-        std::cerr << "[CGDenoiser] Error: srcData is null!" << std::endl;
-        return;
-    }
-    
-    float* dstBuffer = m_denoiserData.getColor();
-    if (!dstBuffer) {
-        std::cerr << "[CGDenoiser] Error: dstBuffer is null!" << std::endl;
-        return;
-    }
-    
-    auto chanStride = colorPlane.chanStride();
-    int pixelsPerRow = m_width * 3;
-    
-    // Use pointer arithmetic for faster copying
-    #pragma omp parallel for
-    for (int c = 0; c < 3; c++) {
-        const float* srcChan = &srcData[chanStride * c];
-        float* dstPtr = dstBuffer + c;
-        
-        for (int y = 0; y < m_height; y++) {
-            int dstRowStart = ((m_height - y - 1) * m_width) * 3;
-            for (int x = 0; x < m_width; x++) {
-                *(dstPtr + dstRowStart + x * 3) = srcChan[y * m_width + x];
+    auto fetchAndCopy = [&](int inputIdx, float* dstBuffer, DD::Image::ChannelSet mask, int numChans) {
+        if (dstBuffer == nullptr) return;
+
+        DD::Image::Iop* inputNode = dynamic_cast<DD::Image::Iop*>(input(inputIdx));
+        if (!inputNode || !inputNode->tryValidate(true)) return;
+
+        inputNode->request(imageBounds, mask, 0);
+        DD::Image::ImagePlane plane(imageBounds, false, mask, numChans);
+        inputNode->fetchPlane(plane);
+
+        const float* srcData = static_cast<const float*>(plane.readable());
+        if (!srcData) return;
+
+        auto chanStride = plane.chanStride();
+
+        #pragma omp parallel for
+        for (int c = 0; c < numChans; c++) {
+            const float* srcChan = &srcData[chanStride * c];
+            float* dstPtr = dstBuffer + c;
+            
+            for (int y = 0; y < m_height; y++) {
+                // Vertical flip: Nuke (0,0 is bottom-left) to OIDN (0,0 is top-left)
+                int dstRowStart = ((m_height - y - 1) * m_width) * numChans;
+                for (int x = 0; x < m_width; x++) {
+                    *(dstPtr + dstRowStart + x * numChans) = srcChan[y * m_width + x];
+                }
             }
         }
+    };
+
+    fetchAndCopy(0, m_denoiserData.getColor(), DD::Image::Mask_RGB, 3);
+
+    if (m_albedo_connected) {
+        fetchAndCopy(1, m_denoiserData.getAlbedo(), DD::Image::Mask_RGB, 3);
+    }
+
+    if (m_normal_connected) {
+        fetchAndCopy(2, m_denoiserData.getNormal(), DD::Image::Mask_RGB, 3);
     }
 
     if (aborted() || cancelled()) return;
 
-    // Run OIDN denoising
-    m_oidn->run(m_denoiserData, m_deviceDirty, m_filterDirty);
+    if (m_engine == 0) {
+        m_oidn->run(m_denoiserData, m_deviceDirty, m_filterDirty);
+    }
 
+    #if OPTIX
+    else {
+        m_optix->run(m_denoiserData, m_deviceDirty, m_filterDirty);
+    }
+    #endif
+
+    // Run OIDN denoising
     // Write denoised output back
     outputPlane.writable();
     const float* outputData = m_denoiserData.getOutput();
@@ -99,10 +101,67 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
     }
 }
 
+void CGDenoiser::knobs(DD::Image::Knob_Callback f) {
 
+    Enumeration_knob(f, &m_engine, Engine, "Engine");
+    Tooltip(f, "The hardward backend used for denoising");
 
-void CGDenoiser::knobs(DD::Image::Knob_Callback f) {}
-int CGDenoiser::knob_changed(DD::Image::Knob* k) { return 0; }
+    Divider(f);
+
+    // OIDN
+    Enumeration_knob(f, &m_oidn->device_type, OIDN_Device, "Device");
+    Tooltip(f, "The hardward backend used for denoising");
+
+    Enumeration_knob(f, &m_oidn->filter_type, OIDN_Filter, "Filter");
+    Tooltip(f, "Filter method.");
+
+    Enumeration_knob(f, &m_oidn->filter_quality, OIDN_Quality, "Quality");
+    Tooltip(f, "Quality");
+
+    Enumeration_knob(f, &m_oidn->filter_mode, OIDN_Mode, "Mode");
+    Tooltip(f, "Use sRGB if your data is already gamma encoded.");
+
+    Float_knob(f, &m_oidn->filter_inputScale, "filter_inputScale", "Input Scale");
+    Tooltip(f, "Manuall scale the input values (usually 1.0).");
+
+    Bool_knob(f, &m_oidn->filter_directional, "filter_directional", "Directional");
+    Tooltip(f, "Only used for RTLightmap filter.");
+
+}
+int CGDenoiser::knob_changed(DD::Image::Knob* k) { 
+    // Device changes
+    if (k->is("Engine") || k->is("Device")) { // Ensure this matches the internal name in knobs()
+        m_deviceDirty = true;
+        m_filterDirty = true;
+        
+        return 1;
+    }    
+
+    // Filter/Workflow changes
+    if (k->is("Filter") || k->is("Mode") || k->is("Quality") || 
+        k->is("filter_inputScale") || k->is("filter_directional")) {
+        
+        m_filterDirty = true;
+        
+        // Use the actual value from your OIDN object to determine state
+        bool isRT = (m_oidn->filter_type == 0);
+        bool isLightmap = (m_oidn->filter_type == 1);
+
+        // Workflow (HDR/sRGB) should only be visible for standard RT
+        if (knob("Mode")) {
+            knob("Mode")->visible(isRT);
+        }
+
+        // Directional should only be visible for Lightmap
+        if (knob("filter_directional")) {
+            knob("filter_directional")->visible(isLightmap); 
+        }
+
+        return 1;
+    }
+    
+    return 0;
+}
 
 const char* CGDenoiser::input_label(int n, char*) const
 {
@@ -110,6 +169,7 @@ const char* CGDenoiser::input_label(int n, char*) const
     {
         case 1: return "albedo";
         case 2: return "normal";
+        case 3: return "motion";
         default: return "color";
     }
 }
@@ -129,9 +189,6 @@ bool CGDenoiser::useStripes() const { return false; }
 
 bool CGDenoiser::renderFullPlanes() const { return true; }
 
-static DD::Image::Iop* build(Node* node)
-{
-    return new CGDenoiser(node);
-}
+static DD::Image::Iop* build(Node* node) { return new CGDenoiser(node); }
 
 const DD::Image::Iop::Description CGDenoiser::description("CGDenoiser", nullptr, build);
