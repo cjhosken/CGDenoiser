@@ -42,7 +42,7 @@ class CGDenoiser: public DD::Image::PlanarIop
     public:
         CGDenoiser(Node* node): PlanarIop(node)
         {
-            inputs(3);
+            inputs(4);
 
             m_width = 0;
             m_height = 0;

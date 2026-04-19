@@ -10,6 +10,7 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
     // Check connections
     m_albedo_connected = !(dynamic_cast<DD::Image::Black*>(input(1)));
     m_normal_connected = !(dynamic_cast<DD::Image::Black*>(input(2)));
+    m_motion_connected = !(dynamic_cast<DD::Image::Black*>(input(3)));
 
     DD::Image::Format imageFormat = input0().format();
     m_width = imageFormat.width();
@@ -18,7 +19,7 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
 
     auto bufferSize = m_width * m_height * 3 * sizeof(float);
 
-    m_denoiserData.allocate(m_width, m_height, m_albedo_connected, m_normal_connected);
+    m_denoiserData.allocate(m_width, m_height, m_albedo_connected, m_normal_connected, m_motion_connected);
     
     auto fetchAndCopy = [&](int inputIdx, float* dstBuffer, DD::Image::ChannelSet mask, int numChans) {
         if (dstBuffer == nullptr) return;
@@ -58,6 +59,14 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
 
     if (m_normal_connected) {
         fetchAndCopy(2, m_denoiserData.getNormal(), DD::Image::Mask_RGB, 3);
+    }
+
+    if (m_motion_connected) {
+        DD::Image::ChannelSet motionMask;
+        motionMask += DD::Image::Chan_Green;
+        motionMask += DD::Image::Chan_Red;
+
+        fetchAndCopy(3, m_denoiserData.getMotion(), motionMask, 2);
     }
 
     if (aborted() || cancelled()) return;

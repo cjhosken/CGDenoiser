@@ -24,8 +24,9 @@ public:
      * @param height Image height in pixels
      * @param hasAlbedo Whether to allocate albedo buffer
      * @param hasNormal Whether to allocate normal buffer
+     * @param hasMotion Whether to allocate motion buffer
      */
-    void allocate(int width, int height, bool hasAlbedo = false, bool hasNormal = false);
+    void allocate(int width, int height, bool hasAlbedo = false, bool hasNormal = false, bool hasMotion = false);
 
     /**
      * @brief Release all allocated buffers
@@ -47,10 +48,17 @@ public:
      */
     void setNormal(const float* data, size_t size);
 
+
+    /**
+     * @brief Set motion buffer data
+     */
+    void setMotion(const float* data, size_t size);
+
     // Accessors
     int getWidth() const { return m_width; }
     int getHeight() const { return m_height; }
     size_t getColorSize() const { return m_colorSize; }
+    size_t getMotionSize() const { return m_motionSize; }
 
     float* getColor() { return m_color.data(); }
     const float* getColor() const { return m_color.data(); }
@@ -61,6 +69,9 @@ public:
     float* getNormal() { return m_normal.empty() ? nullptr : m_normal.data(); }
     const float* getNormal() const { return m_normal.empty() ? nullptr : m_normal.data(); }
 
+    float* getMotion() { return m_motion.empty() ? nullptr : m_motion.data(); }
+    const float* getMotion() const { return m_motion.empty() ? nullptr : m_motion.data(); }
+
     float* getOutput() { return m_output.data(); }
     const float* getOutput() const { return m_output.data(); }
     
@@ -68,6 +79,7 @@ public:
     // Status checks
     bool hasAlbedo() const { return !m_albedo.empty(); }
     bool hasNormal() const { return !m_normal.empty(); }
+    bool hasMotion() const { return !m_motion.empty(); }
     bool isAllocated() const { return m_width > 0 && m_height > 0; }
 
 private:
@@ -77,9 +89,11 @@ private:
     std::vector<float> m_color;      // RGB color data (3 channels)
     std::vector<float> m_albedo;     // RGB albedo data (3 channels) - optional
     std::vector<float> m_normal;     // RGB normal data (3 channels) - optional
+    std::vector<float> m_motion;     // UV motion data (2 channels) - optional
     std::vector<float> m_output;     // RGB output data (3 channels)
 
     size_t m_colorSize;  // Size in bytes for color/albedo/normal buffers
+    size_t m_motionSize;  // Size in bytes for color/albedo/normal buffers
 };
 
 #endif // DENOISER_DATA_H
