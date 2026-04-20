@@ -234,4 +234,4 @@ bool CGDenoiser::renderFullPlanes() const { return true; }
 
 static DD::Image::Iop* build(Node* node) { return new CGDenoiser(node); }
 
-const DD::Image::Iop::Description CGDenoiser::description("CGDenoiser", nullptr, build);
+const DD::Image::Iop::Description CGDenoiser::description("CGDenoiser", "CGDenoiser", build);

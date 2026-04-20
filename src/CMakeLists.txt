@@ -104,9 +104,6 @@ install(
         "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise.dll"
         "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_core.dll"
         "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_device_cpu.dll"
-        "${CMAKE_SOURCE_DIR}/lib/bin/tbb12.dll"
-        "${CMAKE_SOURCE_DIR}/lib/bin/tbbmalloc_proxy.dll"
-        "${CMAKE_SOURCE_DIR}/lib/bin/tbbmalloc.dll"
     DESTINATION "${PLUGIN_PACKAGE_DIR}"
     OPTIONAL
 )
@@ -123,3 +120,5 @@ install(
     DESTINATION "${PLUGIN_PACKAGE_DIR}"
     OPTIONAL
 )
+
+install(SCRIPT "${CMAKE_SOURCE_DIR}/cmake/install_nuke_plugin.cmake")
