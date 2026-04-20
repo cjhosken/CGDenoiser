@@ -25,7 +25,7 @@ if (TARGET Nuke::NDK)
     return()
 endif()
 
-set(_nuke_KNOWN_VERSIONS 9.0 10.0 10.5 11.0 11.1 11.2 11.3 12.0 12.1 12.2 13.0 13.1 14.0 14.1 15.0 15.1 15.2 16.0)
+set(_nuke_KNOWN_VERSIONS 9.0 10.0 10.5 11.0 11.1 11.2 11.3 12.0 12.1 12.2 13.0 13.1 14.0 14.1 15.0 15.1 15.2 16.0 17.0)
 set(_nuke_TEST_VERSIONS) # List of Nuke-style strings (e.g. "7.0v4")
 
 
