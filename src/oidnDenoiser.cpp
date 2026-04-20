@@ -50,7 +50,12 @@ void OIDNDenoiser::setupDevice()
         #endif
     };
 
-    m_device = oidn::newDevice(device_list[device_type]);
+    std::cout << "Making new device..." << std::endl;
+
+    m_device = oidn::newDevice(device_list.at(device_type));
+
+    std::cout << "New device made!" << std::endl;
+
 
     m_device.setErrorFunction(
         [](void*, oidn::Error code, const char* msg)

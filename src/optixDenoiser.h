@@ -2,7 +2,6 @@
 #define OPTIXDENOISER_H
 
 #include <iostream>
-#include "DDImage/PlanarIop.h"
 
 #include "denoiserData.h"
 

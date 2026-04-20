@@ -1,6 +1,14 @@
 # Define where the final plugin package will live
 set(PLUGIN_PACKAGE_DIR "${CMAKE_SOURCE_DIR}/plugins/CGDenoiser")
 
+find_package(Nuke REQUIRED)
+find_package(OpenImageDenoise REQUIRED)
+
+if (OPTIX)
+    find_package(CUDAToolkit REQUIRED)
+    find_package(OptiX REQUIRED)
+endif()
+
 # --- 1. Target Definition ---
 
 if(OPTIX)
@@ -49,18 +57,6 @@ target_link_libraries(CGDenoiser PUBLIC
     OpenImageDenoise::OpenImageDenoise
 )
 
-set(CMAKE_BUILD_TYPE Release)
-if(WIN32)
-    # Was getting LNK4098: defaultlib 'MSCVRT' conflicts with use of other libs
-    # It took many hours to figure out the -MT flag
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O2 -DNDEBUG /MD")
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
-else()
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O3 -DNDEBUG -Wall")
-endif()
-
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
 # --- 3. Platform Specifics ---
 if(WIN32)
     target_compile_definitions(CGDenoiser PRIVATE 
@@ -76,11 +72,6 @@ else()
         # $ORIGIN tells the plugin to look for OIDN/TBB in its own folder
         INSTALL_RPATH "\$ORIGIN" 
     )
-    
-    # Nuke Core Linking: On Linux, we MUST explicitly link DDImage
-    # We use Nuke_ROOT to find the actual .so file
-    find_library(DDIMAGE_LIB DDImage PATHS $ENV{Nuke_ROOT} NO_DEFAULT_PATH)
-    target_link_libraries(CGDenoiser PUBLIC ${DDIMAGE_LIB})
 
     target_compile_definitions(CGDenoiser PRIVATE 
         FN_S_STD_ALLOCATOR
@@ -100,10 +91,12 @@ else()
     target_link_options(CGDenoiser PRIVATE "-Wl,--no-as-needed")
 endif()
 
+target_link_libraries(CGDenoiser PUBLIC ${NUKE_DDIMAGE_LIBRARY})
+
 # --- 4. Installation / Bundling ---
 
 # Install the actual compiled plugin
-install(TARGETS CGDenoiser DESTINATION ${PLUGIN_PACKAGE_DIR})
+install(TARGETS CGDenoiser DESTINATION ${PLUGIN_PACKAGE_DIR} COMPONENT Nuke)
 
 # Install supporting libraries (OIDN only - exclude TBB to avoid conflicts with Nuke's TBB)
 install(
@@ -122,4 +115,11 @@ install(
     DIRECTORY "${CMAKE_SOURCE_DIR}/lib/lib64/"
     DESTINATION "${PLUGIN_PACKAGE_DIR}"
     FILES_MATCHING PATTERN "*.so*"
+)
+
+install(
+    FILES 
+        "${CMAKE_SOURCE_DIR}/scripts/menu.py"
+    DESTINATION "${PLUGIN_PACKAGE_DIR}"
+    OPTIONAL
 )

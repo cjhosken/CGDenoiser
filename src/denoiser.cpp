@@ -1,6 +1,6 @@
 #include "denoiser.h"
-#include "DDImage/Black.h"
-#include "DDImage/Knobs.h"
+#include <DDImage/Black.h>
+#include <DDImage/Knobs.h>
 
 
 void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
@@ -36,7 +36,6 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
 
         auto chanStride = plane.chanStride();
 
-        #pragma omp parallel for
         for (int c = 0; c < numChans; c++) {
             const float* srcChan = &srcData[chanStride * c];
             float* dstPtr = dstBuffer + c;
@@ -92,7 +91,6 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
         DD::Image::Channel::Chan_Blue
     };
     
-    #pragma omp parallel for
     for (int chanNo = 0; chanNo < 3; chanNo++)
     {
         int c = outputPlane.chanNo(channels[chanNo]);
@@ -155,13 +153,13 @@ int CGDenoiser::knob_changed(DD::Image::Knob* k) {
 
     // --- Read CURRENT values from knobs (not member vars) ---
     int engine = m_engine;
-    if (Knob* ek = knob("engine"))
+    if (DD::Image::Knob* ek = knob("engine"))
         engine = int(ek->get_value());
 
     bool useOIDN = (engine == 0);
 
     int filter = m_oidn->filter_type;
-    if (Knob* fk = knob("oidn_filter"))
+    if (DD::Image::Knob* fk = knob("oidn_filter"))
         filter = int(fk->get_value());
 
     bool isRT = (filter == 0);
@@ -180,7 +178,7 @@ int CGDenoiser::knob_changed(DD::Image::Knob* k) {
 
     for (const char* name : oidn_knobs)
     {
-        if (Knob* kk = knob(name))
+        if (DD::Image::Knob* kk = knob(name))
         {
             bool v = useOIDN;
 
@@ -192,7 +190,7 @@ int CGDenoiser::knob_changed(DD::Image::Knob* k) {
 
             kk->visible(v);
         }
-    }
+    } 
 
     // --- OptiX knobs ---
     #if OPTIX

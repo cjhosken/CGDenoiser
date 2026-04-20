@@ -1,9 +1,10 @@
 #ifndef CGDENOISER_H
 #define CGDENOISER_H
 
-#include "oidnDenoiser.h"
+#include <DDImage/PlanarIop.h>
 #include "denoiserData.h"
 
+#include "oidnDenoiser.h"
 #if OPTIX
 #include "optixDenoiser.h"
 #endif
@@ -31,10 +32,10 @@ class CGDenoiser: public DD::Image::PlanarIop
 
     int m_engine = 0; // 0 = OIDN, 1 = OptiX
 
-    OIDNDenoiser* m_oidn;
+    std::unique_ptr<OIDNDenoiser> m_oidn;
 
     #if OPTIX
-    OptiXDenoiser* m_optix;
+    std::unique_ptr<OptiXDenoiser> m_optix;
     #endif
 
     DenoiserData m_denoiserData;
@@ -47,10 +48,12 @@ class CGDenoiser: public DD::Image::PlanarIop
             m_width = 0;
             m_height = 0;
 
-            m_oidn = new OIDNDenoiser();
+            if (!m_oidn)
+                m_oidn = std::make_unique<OIDNDenoiser>();
 
             #if OPTIX
-            m_optix = new OptiXDenoiser();
+            if (!m_optix)
+                m_optix = std::make_unique<OptiXDenoiser>();
             #endif
         }
 

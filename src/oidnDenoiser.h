@@ -4,10 +4,8 @@
 #include <iostream>
 
 #include "DDImage/PlanarIop.h"
-#include <OpenImageDenoise/oidn.hpp>
 #include "denoiserData.h"
-
-using namespace DD::Image;
+#include <OpenImageDenoise/oidn.hpp>
 
 static const char* const OIDN_Device[] = {
     "Default", 
