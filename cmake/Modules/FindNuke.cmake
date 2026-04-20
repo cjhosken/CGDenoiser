@@ -25,7 +25,7 @@ if (TARGET Nuke::NDK)
     return()
 endif()
 
-set(_nuke_KNOWN_VERSIONS 9.0 10.0 10.5 11.0 11.1 11.2 11.3 12.0 12.1 12.2 13.0 13.1 14.0 14.1 15.0 15.1 15.2 16.0 17.0)
+set(_nuke_KNOWN_VERSIONS 9.0 10.0 10.5 11.0 11.1 11.2 11.3 12.0 12.1 12.2 13.0 13.1 13.2 14.0 14.1 15.0 15.1 15.2 16.0 16.1 17.0)
 set(_nuke_TEST_VERSIONS) # List of Nuke-style strings (e.g. "7.0v4")
 
 
@@ -163,7 +163,7 @@ if (UNIX AND NOT APPLE)
             IMPORTED_LOCATION ${NUKE_ROOT}/libDDImage.so
             INTERFACE_INCLUDE_DIRECTORIES ${NUKE_ROOT}/include
             INTERFACE_LINK_LIBRARIES ${NUKE_ROOT}/libDDImage.so
-            INTERFACE_COMPILE_FEATURES cxx_std_14
+            INTERFACE_COMPILE_FEATURES cxx_std_17
     )
 elseif (APPLE)
     set_target_properties(Nuke::NDK
@@ -171,7 +171,7 @@ elseif (APPLE)
         IMPORTED_LOCATION ${NUKE_ROOT}/libDDImage.dylib
         INTERFACE_INCLUDE_DIRECTORIES ${NUKE_ROOT}/include
         INTERFACE_LINK_LIBRARIES ${NUKE_ROOT}/libDDImage.dylib
-        INTERFACE_COMPILE_FEATURES cxx_std_14
+        INTERFACE_COMPILE_FEATURES cxx_std_17
     )
 else()
     set_target_properties(Nuke::NDK
@@ -179,12 +179,12 @@ else()
             IMPORTED_LOCATION ${NUKE_ROOT}/DDImage.dll
             IMPORTED_IMPLIB ${NUKE_ROOT}/DDImage.lib
             INTERFACE_INCLUDE_DIRECTORIES ${NUKE_ROOT}/include
-            INTERFACE_COMPILE_FEATURES cxx_std_14
+            INTERFACE_COMPILE_FEATURES cxx_std_17
     )
 endif()
 
 # Add FDK library for latest versions of Nuke
-if(${NUKE_VERSION_MAJOR} GREATER_EQUAL 14)
+if(${NUKE_VERSION_MAJOR} GREATER_EQUAL 17)
     add_library(Nuke::FDK SHARED IMPORTED)
 
     if(APPLE)
@@ -193,7 +193,7 @@ if(${NUKE_VERSION_MAJOR} GREATER_EQUAL 14)
                 IMPORTED_LOCATION ${NUKE_ROOT}/libFdkBase.dylib
                 INTERFACE_INCLUDE_DIRECTORIES ${NUKE_ROOT}/include
                 INTERFACE_LINK_LIBRARIES ${NUKE_ROOT}/libFdkBase.dylib
-                INTERFACE_COMPILE_FEATURES cxx_std_14
+                INTERFACE_COMPILE_FEATURES cxx_std_17
         )
     elseif(UNIX)
         set_target_properties(Nuke::FDK
@@ -201,7 +201,7 @@ if(${NUKE_VERSION_MAJOR} GREATER_EQUAL 14)
                 IMPORTED_LOCATION ${NUKE_ROOT}/libFdkBase.so
                 INTERFACE_INCLUDE_DIRECTORIES ${NUKE_ROOT}/include
                 INTERFACE_LINK_LIBRARIES ${NUKE_ROOT}/libFdkBase.so
-                INTERFACE_COMPILE_FEATURES cxx_std_14
+                INTERFACE_COMPILE_FEATURES cxx_std_17
         )
     else()
         set_target_properties(Nuke::FDK
@@ -209,7 +209,7 @@ if(${NUKE_VERSION_MAJOR} GREATER_EQUAL 14)
                 IMPORTED_LOCATION ${NUKE_ROOT}/FdkBase.dll
                 IMPORTED_IMPLIB ${NUKE_ROOT}/FdkBase.lib
                 INTERFACE_INCLUDE_DIRECTORIES ${NUKE_ROOT}/include
-                INTERFACE_COMPILE_FEATURES cxx_std_14
+                INTERFACE_COMPILE_FEATURES cxx_std_17
         )
     endif()
 endif()
