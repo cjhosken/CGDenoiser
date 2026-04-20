@@ -22,29 +22,12 @@ void OptiXDenoiser::setupDevice()
     // -------------------------
     // 1. Init CUDA driver
     // -------------------------
-    CUresult cuRes = cuInit(0);
-    if (cuRes != CUDA_SUCCESS) {
-        std::cerr << "[CUDA] cuInit failed\n";
-        return;
+    cudaFree(0);
+    cuCtxGetCurrent(&m_cuCtx);
+    if (!m_cuCtx) {
+        cuDevicePrimaryCtxRetain(&m_cuCtx, 0);
+        cuCtxPushCurrent(m_cuCtx);
     }
-
-    // -------------------------
-    // 2. Select device explicitly
-    // -------------------------
-    int device = 0;
-    cudaSetDevice(device);
-
-    CUdevice cuDevice;
-    cuDeviceGet(&cuDevice, device);
-
-    // -------------------------
-    // 3. Create primary context
-    // -------------------------
-    CUcontext cuCtx;
-    cuDevicePrimaryCtxRetain(&cuCtx, cuDevice);
-    cuCtxSetCurrent(cuCtx);
-
-    m_cuCtx = cuCtx;
 
     // -------------------------
     // 4. Stream
@@ -116,8 +99,11 @@ void OptiXDenoiser::setupDenoiser(int w, int h, bool dirty) {
     if (m_dState) cudaFree((void*)m_dState);
     if (m_dScratch) cudaFree((void*)m_dScratch);
 
-    cudaMalloc((void**)&m_dState, sizes.stateSizeInBytes);
-    cudaMalloc((void**)&m_dScratch, sizes.withoutOverlapScratchSizeInBytes);
+    m_stateSize = sizes.stateSizeInBytes;
+    m_scratchSize = sizes.withoutOverlapScratchSizeInBytes;
+
+    cudaMalloc((void**)&m_dState, m_stateSize);
+    cudaMalloc((void**)&m_dScratch, m_scratchSize);
 
     optixDenoiserSetup(m_denoiser, m_stream, w, h, m_dState,
                     sizes.stateSizeInBytes, m_dScratch,
@@ -229,17 +215,23 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
         flow.pixelStrideInBytes = pixelSize2;
     }
 
-    optixDenoiserComputeIntensity(
-        m_denoiser,
-        m_stream,
-        &input,
-        m_dIntensity,
-        m_dScratch,
-        m_scratchSize
-    );
-
     OptixDenoiserParams params = {};
-    params.hdrIntensity = m_dIntensity;
+
+    if (model == 0) {
+
+        optixDenoiserComputeIntensity(
+            m_denoiser,
+            m_stream,
+            &input,
+            m_dIntensity,
+            m_dScratch,
+            m_scratchSize
+        );
+
+        params.hdrIntensity = m_dIntensity;
+
+    }
+
     params.blendFactor = 1.0f - blend;
 
     OptixDenoiserLayer layer = {};
