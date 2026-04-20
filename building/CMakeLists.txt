@@ -12,10 +12,10 @@ endif ()
 set(InstallDir ${CMAKE_SOURCE_DIR}/../lib)
 
 if (WIN32)
-    set(ISPC_URL https://github.com/ispc/ispc/releases/download/v1.29.1/ispc-v1.29.1-windows.zip)
+    set(ISPC_URL https://github.com/ispc/ispc/releases/download/v1.27.0/ispc-v1.27.0-windows.zip)
     set(ISPC_BIN ispc.exe)
 else()
-    set(ISPC_URL https://github.com/ispc/ispc/releases/download/v1.29.1/ispc-v1.29.1-linux.tar.gz)
+    set(ISPC_URL https://github.com/ispc/ispc/releases/download/v1.27.0/ispc-v1.27.0-linux.tar.gz)
     set(ISPC_BIN ispc)
 endif()
 
@@ -35,7 +35,7 @@ set(CHAIN ISPC)
 
 ExternalProject_Add(TBB
     GIT_REPOSITORY https://github.com/oneapi-src/oneTBB.git
-    GIT_TAG v2021.12.0
+    GIT_TAG v2022.2.0
     INSTALL_DIR ${InstallDir}
     CMAKE_ARGS 
         -DCMAKE_BUILD_TYPE=Release
@@ -49,7 +49,7 @@ set(CHAIN TBB)
 
 ExternalProject_Add(OpenImageDenoise
     GIT_REPOSITORY https://github.com/RenderKit/oidn.git
-    GIT_TAG v2.4.1
+    GIT_TAG v2.3.3
     INSTALL_DIR ${InstallDir}
     CMAKE_ARGS 
         -DTBB_ROOT=<INSTALL_DIR>

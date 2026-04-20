@@ -28,28 +28,7 @@ install.bat
 install.sh
 ```
 
-After a succesful build you should have:
-`plugins/CGDenoiser`
-
-### 2. Install into Nuke
-
-Copy the plugin:
-`plugins/CGDenoiser -> ~/.nuke/`
-
-### 3. Update `init.py`
-Add the plugin path:
-```py
-import nuke
-import os
-
-nuke.pluginAddPath(
-    os.path.join(os.path.dirname(os.path.realpath(__file__)), "CGDenoiser")
-)
-```
-
-### 4. Add menu
-Copy:
-`scripts/menu.py → ~/.nuke/menu.py`
+This will build and install the plugin directly into ~/.nuke
 
 ## ⚙️ Build Options
 
