@@ -13,9 +13,9 @@ cd /d "%SCRIPT_DIR%"
 mkdir "%SCRIPT_DIR%\..\lib\bin"
 
 :: Run CMake configure
-cmake -S . -B C:/b -Wno-dev
+cmake -S . -B D:/b -Wno-dev
 
 :: Build with Release config
-cmake --build C:/b --config Release -- /m:16
+cmake --build D:/b --config Release -- /m:16
 
 endlocal
