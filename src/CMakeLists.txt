@@ -49,15 +49,14 @@ target_link_libraries(CGDenoiser PUBLIC
     OpenImageDenoise::OpenImageDenoise
 )
 
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release)
-  if(WIN32)
+set(CMAKE_BUILD_TYPE Release)
+if(WIN32)
     # Was getting LNK4098: defaultlib 'MSCVRT' conflicts with use of other libs
     # It took many hours to figure out the -MT flag
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O2 -DNDEBUG -MT")
-  else()
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O2 -DNDEBUG /MD")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+else()
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O3 -DNDEBUG -Wall")
-  endif()
 endif()
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -112,6 +111,9 @@ install(
         "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise.dll"
         "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_core.dll"
         "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_device_cpu.dll"
+        "${CMAKE_SOURCE_DIR}/lib/bin/tbb12.dll"
+        "${CMAKE_SOURCE_DIR}/lib/bin/tbbmalloc_proxy.dll"
+        "${CMAKE_SOURCE_DIR}/lib/bin/tbbmalloc.dll"
     DESTINATION "${PLUGIN_PACKAGE_DIR}"
     OPTIONAL
 )
