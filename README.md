@@ -33,6 +33,7 @@ Designed for production workflows with support for auxiliary buffers such as **a
 ## 🧩 Supported Versions
 
 - **Nuke 17.0v1**
+- **Nuke 16.0v2**
 
 Other versions may be suported, however some manual fixing will be needed.
 
