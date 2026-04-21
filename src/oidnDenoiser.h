@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-#include "DDImage/PlanarIop.h"
+#include <DDImage/PlanarIop.h>
 #include "denoiserData.h"
 #include <OpenImageDenoise/oidn.hpp>
 

@@ -5,10 +5,16 @@
 
 #include "denoiserData.h"
 
+#ifdef _WIN32
+    #define _WIN32_WINNT 0x0A00
+    #define WINVER 0x0A00
+
+    #include <windows.h>
+    #include <cfgmgr32.h>
+#endif
+
 #include <optix.h>
 #include <optix_stubs.h>
-
-using namespace DD::Image;
 
 static const char* const OptiX_MODEL[] = {"HDR", "AOV", "Temporal", 0};
 

@@ -9,11 +9,7 @@ option(OIDN_METAL "Enable OpenImageDenoise METAL" OFF)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-if(OPTIX)
-    project(CGDenoiser LANGUAGES CXX CUDA)
-else()
-    project(CGDenoiser LANGUAGES CXX)
-endif()
+project(CGDenoiser LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

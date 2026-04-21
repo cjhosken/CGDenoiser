@@ -198,7 +198,7 @@ int CGDenoiser::knob_changed(DD::Image::Knob* k) {
 
     for (const char* name : optix_knobs)
     {
-        if (Knob* kk = knob(name))
+        if (DD::Image::Knob* kk = knob(name))
             kk->visible(!useOIDN);
     }
     #endif

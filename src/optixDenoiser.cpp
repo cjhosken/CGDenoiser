@@ -22,44 +22,38 @@ void OptiXDenoiser::setupDevice()
     // -------------------------
     // 1. Init CUDA driver
     // -------------------------
+    cudaSetDevice(0);
     cudaFree(0);
-    cuCtxGetCurrent(&m_cuCtx);
-    if (!m_cuCtx) {
-        cuDevicePrimaryCtxRetain(&m_cuCtx, 0);
-        cuCtxPushCurrent(m_cuCtx);
-    }
 
-    // -------------------------
-    // 4. Stream
-    // -------------------------
     cuStreamCreate(&m_stream, CU_STREAM_DEFAULT);
 
-    // -------------------------
-    // 5. OptiX init
-    // -------------------------
+    CUcontext cuCtx = nullptr;
+    cuCtxGetCurrent(&cuCtx);
+
+    if (!cuCtx) {
+        std::cerr << "[OptiX] No active CUDA context!\n";
+        return;
+    }
+
+    m_cuCtx = cuCtx;
     OptixResult optixRes = optixInit();
+
     if (optixRes != OPTIX_SUCCESS) {
-        std::cerr << "[OptiX] optixInit failed\n";
+        const char* name = optixGetErrorName(optixRes);
+        std::cerr << "[OptiX] optixInit failed: "
+                  << (name ? name : "unknown") << "\n";
         return;
     }
 
     OptixDeviceContextOptions options = {};
     options.logCallbackLevel = 4;
 
-    OptixResult ctxRes = optixDeviceContextCreate(
-        m_cuCtx,
-        &options,
-        &m_context
-    );
-
-    if (ctxRes != OPTIX_SUCCESS) {
+    if (optixDeviceContextCreate(m_cuCtx, &options, &m_context) != OPTIX_SUCCESS) {
         std::cerr << "[OptiX] Context creation failed\n";
         return;
     }
 
-    // -------------------------
-    // 6. Intensity buffer
-    // -------------------------
+    // 5. Allocate intensity buffer
     cudaMalloc((void**)&m_dIntensity, sizeof(float));
 
     m_initialized = true;
@@ -70,8 +64,10 @@ void OptiXDenoiser::setupDevice()
 void OptiXDenoiser::setupDenoiser(int w, int h, bool dirty) {
     std::cout << "[OptiX] Setting up Denoiser..." << std::endl;
     
-
-    cuCtxSetCurrent(m_cuCtx);
+    if (!m_context) {
+        std::cerr << "[OptiX] Invalid context, skipping denoiser setup\n";
+        return;
+    }
 
     if (!dirty && m_denoiser && w == m_width && h == m_height) return;
 

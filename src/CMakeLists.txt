@@ -5,7 +5,6 @@ find_package(Nuke REQUIRED)
 find_package(OpenImageDenoise REQUIRED)
 
 if (OPTIX)
-    find_package(CUDAToolkit REQUIRED)
     find_package(OptiX REQUIRED)
 endif()
 
@@ -104,6 +103,9 @@ install(
         "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise.dll"
         "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_core.dll"
         "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_device_cpu.dll"
+        "${CMAKE_SOURCE_DIR}/lib/bin/tbb12.dll"
+        "${CMAKE_SOURCE_DIR}/lib/bin/tbbmalloc_proxy.dll"
+        "${CMAKE_SOURCE_DIR}/lib/bin/tbbmalloc.dll"
     DESTINATION "${PLUGIN_PACKAGE_DIR}"
     OPTIONAL
 )
