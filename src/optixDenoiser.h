@@ -30,7 +30,7 @@ class OptiXDenoiser {
 
     private:
         void setupDevice();
-        void setupDenoiser(int w, int h, bool dirty);
+        void setupDenoiser(int w, int h);
         void cleanup();
 
         int m_width;
@@ -55,6 +55,9 @@ class OptiXDenoiser {
 
         int m_stateSize;
         int m_scratchSize;
+
+        bool m_deviceDirty;
+        bool m_denoiserDirty;
 
         bool m_initialized = false;
         bool m_hasPrev = false;

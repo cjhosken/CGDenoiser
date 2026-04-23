@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.23)
 
-option(OPTIX "Enable OptiX backend" OFF)
-option(OIDN_CPU "Enable OpenImageDenoise CPU" ON)
-option(OIDN_CUDA "Enable OpenImageDenoise CUDA" OFF)
-option(OIDN_SYCL "Enable OpenImageDenoise SYCL" OFF)
-option(OIDN_HIP "Enable OpenImageDenoise HIP" OFF)
-option(OIDN_METAL "Enable OpenImageDenoise METAL" OFF)
+option(ENABLE_OPTIX "Enable OptiX backend" OFF)
+option(ENABLE_OIDN "Enable OIDN backend" ON)
+option(CPU "Enable OpenImageDenoise CPU" ON)
+option(CUDA "Enable OpenImageDenoise CUDA" OFF)
+option(SYCL "Enable OpenImageDenoise SYCL" OFF)
+option(HIP "Enable OpenImageDenoise HIP" OFF)
+option(METAL "Enable OpenImageDenoise METAL" OFF)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 

@@ -2,23 +2,49 @@
 set(PLUGIN_PACKAGE_DIR "${CMAKE_SOURCE_DIR}/plugins/CGDenoiser")
 
 find_package(Nuke REQUIRED)
-find_package(OpenImageDenoise REQUIRED)
 
-if (OPTIX)
+if (ENABLE_OIDN)
+    find_package(OpenImageDenoise REQUIRED)
+endif()
+
+if (ENABLE_OPTIX)
     find_package(OptiX REQUIRED)
 endif()
 
 # --- 1. Target Definition ---
 
-if(OPTIX)
-    add_library(CGDenoiser SHARED denoiser.cpp denoiserData.cpp oidnDenoiser.cpp optixDenoiser.cpp)
+set(SOURCES
+    denoiser.cpp
+    denoiserData.cpp
+)
+
+if(ENABLE_OPTIX)
+    list(APPEND SOURCES optixDenoiser.cpp)
+endif()
+
+if(ENABLE_OIDN)
+    list(APPEND SOURCES oidnDenoiser.cpp)
+endif()
+
+add_library(CGDenoiser SHARED ${SOURCES})
+
+if (ENABLE_OPTIX)
     target_link_libraries(CGDenoiser PUBLIC CUDA::cudart CUDA::cuda_driver)
     target_include_directories(CGDenoiser PRIVATE ${OptiX_INCLUDE_DIR})
     target_compile_definitions(CGDenoiser PRIVATE OPTIX=1)
 else()
-    add_library(CGDenoiser SHARED denoiser.cpp denoiserData.cpp oidnDenoiser.cpp)
     target_compile_definitions(CGDenoiser PRIVATE OPTIX=0)
 endif()
+
+if (ENABLE_OIDN)
+    target_compile_definitions(CGDenoiser PRIVATE OIDN=1)
+    target_link_libraries(CGDenoiser PUBLIC 
+        OpenImageDenoise::OpenImageDenoise
+    )
+else()
+    target_compile_definitions(CGDenoiser PRIVATE OIDN=0)
+endif()
+
 
 if (OIDN_CUDA)
     target_compile_definitions(CGDenoiser PRIVATE OIDN_CUDA=1)
@@ -53,7 +79,6 @@ endif()
 # --- 2. Shared Linker/Include Logic ---
 target_link_libraries(CGDenoiser PUBLIC 
     Nuke::NDK
-    OpenImageDenoise::OpenImageDenoise
 )
 
 # --- 3. Platform Specifics ---

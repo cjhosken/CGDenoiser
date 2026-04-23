@@ -4,78 +4,87 @@
 #include <optix_function_table_definition.h> // Keep it ONLY here
 #include "optixDenoiser.h"
 
-
 OptiXDenoiser::OptiXDenoiser() {
     model = 0;
     blend = 1.0f;
+
+    m_deviceDirty = true;
+    m_denoiserDirty = true;
 }
 
-OptiXDenoiser::~OptiXDenoiser() {cleanup();}
+OptiXDenoiser::~OptiXDenoiser() {
+    if (m_initialized || m_context || m_denoiser)
+        cleanup();
+}
 
 void OptiXDenoiser::setupDevice()
 {
-    if (m_initialized)
+    if (!m_deviceDirty)
         return;
 
     std::cout << "[OptiX] Setting up Device..." << std::endl;
 
-    // -------------------------
-    // 1. Init CUDA driver
-    // -------------------------
-    cudaSetDevice(0);
-    cudaFree(0);
+    CUresult cuRes = cuCtxGetCurrent(&m_cuCtx);
 
-    cuStreamCreate(&m_stream, CU_STREAM_DEFAULT);
-
-    CUcontext cuCtx = nullptr;
-    cuCtxGetCurrent(&cuCtx);
-
-    if (!cuCtx) {
-        std::cerr << "[OptiX] No active CUDA context!\n";
+    if (cuRes != CUDA_SUCCESS || !m_cuCtx)
+    {
+        std::cerr << "[OptiX] No active CUDA context from Nuke\n";
         return;
     }
 
-    m_cuCtx = cuCtx;
-    OptixResult optixRes = optixInit();
 
-    if (optixRes != OPTIX_SUCCESS) {
-        const char* name = optixGetErrorName(optixRes);
-        std::cerr << "[OptiX] optixInit failed: "
-                  << (name ? name : "unknown") << "\n";
-        return;
+    static bool optixInitDone = false;
+    if (!optixInitDone)
+    {
+        OptixResult r = optixInit();
+        if (r != OPTIX_SUCCESS)
+        {
+            std::cerr << "[OptiX] optixInit failed\n";
+            return;
+        }
+        optixInitDone = true;
     }
 
     OptixDeviceContextOptions options = {};
     options.logCallbackLevel = 4;
 
-    if (optixDeviceContextCreate(m_cuCtx, &options, &m_context) != OPTIX_SUCCESS) {
-        std::cerr << "[OptiX] Context creation failed\n";
+    OptixResult res = optixDeviceContextCreate(
+        m_cuCtx,
+        &options,
+        &m_context
+    );
+
+    if (res != OPTIX_SUCCESS || !m_context)
+    {
+        std::cerr << "[OptiX] optixDeviceContextCreate failed\n";
         return;
     }
 
-    // 5. Allocate intensity buffer
-    cudaMalloc((void**)&m_dIntensity, sizeof(float));
+    cuRes = cuStreamCreate(&m_stream, CU_STREAM_DEFAULT);
+    if (cuRes != CUDA_SUCCESS)
+    {
+        std::cerr << "[OptiX] cuStreamCreate failed\n";
+        return;
+    }
 
-    m_initialized = true;
-
-    std::cout << "[OptiX] Device Created OK" << std::endl;
+    cudaError_t err = cudaMalloc((void**)&m_dIntensity, sizeof(float));
+    if (err != cudaSuccess)
+    {
+        std::cerr << "[OptiX] cudaMalloc failed\n";
+        return;
+    }
+    
+    m_deviceDirty = false;
+    m_denoiserDirty = true;
+    std::cout << "[OptiX] Device Created!" << std::endl;
 }
 
-void OptiXDenoiser::setupDenoiser(int w, int h, bool dirty) {
+void OptiXDenoiser::setupDenoiser(int w, int h) {
     std::cout << "[OptiX] Setting up Denoiser..." << std::endl;
-    
-    if (!m_context) {
-        std::cerr << "[OptiX] Invalid context, skipping denoiser setup\n";
-        return;
-    }
 
-    if (!dirty && m_denoiser && w == m_width && h == m_height) return;
+    cuCtxSetCurrent(m_cuCtx);
 
-    if (m_denoiser)
-    {
-        optixDenoiserDestroy(m_denoiser);
-        m_denoiser = nullptr;
-    }
+    if (m_denoiser) optixDenoiserDestroy(m_denoiser);
 
     m_width = w;
     m_height = h;
@@ -92,11 +101,11 @@ void OptiXDenoiser::setupDenoiser(int w, int h, bool dirty) {
     OptixDenoiserSizes sizes;
     optixDenoiserComputeMemoryResources(m_denoiser, w, h, &sizes);
 
-    if (m_dState) cudaFree((void*)m_dState);
-    if (m_dScratch) cudaFree((void*)m_dScratch);
-
     m_stateSize = sizes.stateSizeInBytes;
     m_scratchSize = sizes.withoutOverlapScratchSizeInBytes;
+
+    if (m_dState) cudaFree((void*)m_dState);
+    if (m_dScratch) cudaFree((void*)m_dScratch);
 
     cudaMalloc((void**)&m_dState, m_stateSize);
     cudaMalloc((void**)&m_dScratch, m_scratchSize);
@@ -105,6 +114,8 @@ void OptiXDenoiser::setupDenoiser(int w, int h, bool dirty) {
                     sizes.stateSizeInBytes, m_dScratch,
                     sizes.withoutOverlapScratchSizeInBytes
     );
+
+    m_denoiserDirty = false;
 
     std::cout << "[OptiX] Denoiser Created!" << std::endl;
 
@@ -116,8 +127,22 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
     cuCtxSetCurrent(m_cuCtx);
 
-    setupDevice();
-    setupDenoiser(data.getWidth(), data.getHeight(), deviceDirty || filterDirty);
+    m_deviceDirty = deviceDirty || m_deviceDirty;
+    m_denoiserDirty = filterDirty || m_denoiserDirty;
+
+    if (m_deviceDirty) {
+        setupDevice();
+    }
+
+    if (m_deviceDirty || !m_context)
+    {
+        std::cerr << "[OptiX] Skipping run (device not ready)\n";
+        return;
+    }
+        
+    if (m_denoiserDirty) {
+        setupDenoiser(data.getWidth(), data.getHeight());
+    }
     
     int w = data.getWidth();
     int h = data.getHeight();

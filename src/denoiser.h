@@ -4,14 +4,19 @@
 #include <DDImage/PlanarIop.h>
 #include "denoiserData.h"
 
+#if OIDN
 #include "oidnDenoiser.h"
+#endif
+
 #if OPTIX
 #include "optixDenoiser.h"
 #endif
 
 static const char* const Engine[] = {
+    #if OIDN
     "OpenImageDenoiser (OIDN)",
-    
+    #endif
+
     #if OPTIX
     "OptiX",
     #endif
@@ -32,7 +37,9 @@ class CGDenoiser: public DD::Image::PlanarIop
 
     int m_engine = 0; // 0 = OIDN, 1 = OptiX
 
+    #if OIDN
     std::unique_ptr<OIDNDenoiser> m_oidn;
+    #endif
 
     #if OPTIX
     std::unique_ptr<OptiXDenoiser> m_optix;
@@ -47,9 +54,11 @@ class CGDenoiser: public DD::Image::PlanarIop
 
             m_width = 0;
             m_height = 0;
-
+            
+            #if OIDN
             if (!m_oidn)
                 m_oidn = std::make_unique<OIDNDenoiser>();
+            #endif
 
             #if OPTIX
             if (!m_optix)

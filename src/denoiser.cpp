@@ -6,7 +6,7 @@
 void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
 {
     if (aborted() || cancelled()) return;
-
+    
     // Check connections
     m_albedo_connected = !(dynamic_cast<DD::Image::Black*>(input(1)));
     m_normal_connected = !(dynamic_cast<DD::Image::Black*>(input(2)));
@@ -70,14 +70,31 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
 
     if (aborted() || cancelled()) return;
 
+    #if OIDN
     if (m_engine == 0) {
         m_oidn->run(m_denoiserData, m_deviceDirty, m_filterDirty);
     }
+    #endif
 
     #if OPTIX
-    else {
+
+    int optix_engine_target = 1;
+
+    #if !OIDN
+        optix_engine_target = 0;
+    #endif
+
+    if (m_engine == optix_engine_target) {
         m_optix->run(m_denoiserData, m_deviceDirty, m_filterDirty);
     }
+    #endif
+
+    #if !OIDN && !OPTIX
+    std::memcpy(
+        m_denoiserData.getOutput(),
+        m_denoiserData.getColor(),
+        m_width * m_height * 3 * sizeof(float)
+    );
     #endif
 
     m_deviceDirty = false;
@@ -117,6 +134,8 @@ void CGDenoiser::knobs(DD::Image::Knob_Callback f) {
 
     Divider(f);
 
+    #if OIDN
+
     // OIDN
     Enumeration_knob(f, &m_oidn->device_type, OIDN_Device, "oidn_device", "Device");
     Tooltip(f, "The hardware backend used for OIDN denoising");
@@ -139,6 +158,8 @@ void CGDenoiser::knobs(DD::Image::Knob_Callback f) {
     Bool_knob(f, &m_oidn->filter_directional, "oidn_directional", "Directional");
     Tooltip(f, "Whether the input contains normalized coefficients (in [-1, 1]) of a directional lightmap (e.g. normalized L1 or higher spherical harmonics band with the L0 band divided out); if the range of the coefficients is different from [-1, 1], the inputScale parameter can be used to adjust the range without changing the stored values.");
     
+    #endif
+
     // OptiX
     #if OPTIX
 
@@ -161,17 +182,20 @@ int CGDenoiser::knob_changed(DD::Image::Knob* k) {
 
     bool useOIDN = (engine == 0);
 
+    // --- Dirty flags ---
+    if (k->is("engine") || k->is("oidn_device"))
+        m_deviceDirty = true;
+
+    m_filterDirty = true;
+
+    #if OIDN
+
     int filter = m_oidn->filter_type;
     if (DD::Image::Knob* fk = knob("oidn_filter"))
         filter = int(fk->get_value());
 
     bool isRT = (filter == 0);
 
-    // --- Dirty flags ---
-    if (k->is("engine") || k->is("oidn_device"))
-        m_deviceDirty = true;
-
-    m_filterDirty = true;
 
     // --- OIDN knobs ---
     const char* oidn_knobs[] = {
@@ -195,8 +219,15 @@ int CGDenoiser::knob_changed(DD::Image::Knob* k) {
         }
     } 
 
+    #endif
+
     // --- OptiX knobs ---
     #if OPTIX
+
+    #if !OIDN
+    useOIDN = false;
+    #endif
+
     const char* optix_knobs[] = { "optix_model", "optix_blend" };
 
     for (const char* name : optix_knobs)

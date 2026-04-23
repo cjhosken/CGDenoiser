@@ -11,7 +11,6 @@ find_path(OptiX_INCLUDE_DIR
 )
 
 # 2. OptiX needs CUDA to actually do anything
-set(CUDAToolkit_ROOT "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6")
 find_package(CUDAToolkit REQUIRED)
 
 include(FindPackageHandleStandardArgs)
