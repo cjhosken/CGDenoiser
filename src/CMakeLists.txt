@@ -119,6 +119,7 @@ install(
 install(
     FILES 
         "${CMAKE_SOURCE_DIR}/scripts/menu.py"
+        "${CMAKE_SOURCE_DIR}/images/icon.png"
     DESTINATION "${PLUGIN_PACKAGE_DIR}"
     OPTIONAL
 )
