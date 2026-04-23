@@ -45,6 +45,11 @@ message(STATUS "===============================================")
 
 set(CHAIN "")
 
+if(ENABLE_METAL AND NOT APPLE)
+    message(FATAL_ERROR "Metal backend is only supported on macOS")
+endif()
+
+
 if(ENABLE_OIDN)
 
     if (WIN32)
@@ -100,10 +105,19 @@ if(ENABLE_OIDN)
         set(DEPS DEPENDS ${CHAIN})
     endif()
 
+    set(OIDN_GENERATOR_ARG "")
+
+    if(ENABLE_SYCL OR ENABLE_HIP)
+        set(OIDN_GENERATOR_ARG CMAKE_GENERATOR Ninja)
+    endif()
+
     ExternalProject_Add(OpenImageDenoise
         GIT_REPOSITORY https://github.com/RenderKit/oidn.git
         GIT_TAG v${OIDN_VERSION}
         INSTALL_DIR ${INSTALL_DIR}
+
+        ${OIDN_GENERATOR_ARG}
+
         CMAKE_ARGS 
             -DTBB_DIR=<INSTALL_DIR>
             -DCMAKE_PREFIX_PATH=<INSTALL_DIR>
