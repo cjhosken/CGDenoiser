@@ -78,8 +78,6 @@ if ($no_metal)  { $FLAGS.METAL = "OFF" }
 New-Item -ItemType Directory -Force -Path $BUILD_DIR | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $INSTALL_DIR "bin") | Out-Null
 
-# cmd /c "rd /s /q $BUILD_DIR"
-
 # -------------------------
 # Parallel build (Windows cores)
 # -------------------------
