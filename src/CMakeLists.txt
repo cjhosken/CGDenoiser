@@ -1,5 +1,5 @@
 # Define where the final plugin package will live
-set(PLUGIN_PACKAGE_DIR "${CMAKE_SOURCE_DIR}/plugins/CGDenoiser")
+set(PLUGIN_PACKAGE_DIR "${CMAKE_INSTALL_PREFIX}/CGDenoiser")
 
 find_package(Nuke REQUIRED)
 

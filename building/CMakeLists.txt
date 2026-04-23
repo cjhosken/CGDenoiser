@@ -12,7 +12,7 @@ endif ()
 option(ENABLE_OPTIX "Enable OptiX" ON)
 option(ENABLE_OIDN "Enable Open Image Denoise (OIDN)" ON)
 option(ENABLE_CPU "Enable CPU backend" ON)
-option(ENABLE_CUDA "Enable CUDA backend" ON)
+option(ENABLE_CUDA "Enable CUDA backend" OFF)
 option(ENABLE_SYCL "Enable SYCL backend" OFF)
 option(ENABLE_HIP "Enable HIP backend" OFF)
 option(ENABLE_METAL "Enable Metal backend" OFF)
@@ -23,6 +23,25 @@ set(TBB_VERSION "2021.13.0" CACHE STRING "TBB version")
 set(ISPC_VERSION "1.30.0" CACHE STRING "IPSC version")
 
 set(INSTALL_DIR "${CMAKE_SOURCE_DIR}/../lib" CACHE PATH "Install directory")
+
+message(STATUS "================ CONFIG SUMMARY ================")
+
+message(STATUS "ENABLE_OPTIX  = ${ENABLE_OPTIX}")
+message(STATUS "ENABLE_OIDN   = ${ENABLE_OIDN}")
+message(STATUS "ENABLE_CPU    = ${ENABLE_CPU}")
+message(STATUS "ENABLE_CUDA   = ${ENABLE_CUDA}")
+message(STATUS "ENABLE_SYCL   = ${ENABLE_SYCL}")
+message(STATUS "ENABLE_HIP    = ${ENABLE_HIP}")
+message(STATUS "ENABLE_METAL  = ${ENABLE_METAL}")
+
+message(STATUS "OIDN_VERSION  = ${OIDN_VERSION}")
+message(STATUS "OPTIX_VERSION = ${OPTIX_VERSION}")
+message(STATUS "TBB_VERSION   = ${TBB_VERSION}")
+message(STATUS "ISPC_VERSION  = ${ISPC_VERSION}")
+
+message(STATUS "INSTALL_DIR   = ${INSTALL_DIR}")
+
+message(STATUS "===============================================")
 
 set(CHAIN "")
 
@@ -93,7 +112,7 @@ if(ENABLE_OIDN)
 
             -DOIDN_DEVICE_CPU=${ENABLE_CPU}
             -DOIDN_DEVICE_CUDA=${ENABLE_CUDA}
-            -DOIDN_DEVICE_SYCL=${ENABLE_SYCL}
+            -DOIDN_DEVICE_SYCL:BOOL=${ENABLE_SYCL}
             -DOIDN_DEVICE_HIP=${ENABLE_HIP}
             -DOIDN_DEVICE_METAL=${ENABLE_METAL}
 

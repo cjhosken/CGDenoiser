@@ -16,7 +16,7 @@ OIDN_HIP=OFF
 
 NUKE_DIR=""
 BUILD_DIR="./build"
-INSTALL_DIR="./install"
+INSTALL_DIR="./plugins"
 
 # Parse args
 for arg in "$@"; do
