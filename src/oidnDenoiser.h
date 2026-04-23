@@ -1,62 +1,68 @@
 #ifndef OIDNDENOISER_H
 #define OIDNDENOISER_H
 
-#include <iostream>
 
-#include <DDImage/PlanarIop.h>
-#include "denoiserData.h"
 #include <OpenImageDenoise/oidn.hpp>
+#include "denoiserData.h"
 
-static const char* const OIDN_Device[] = {
+static const char* const kOIDNDevices[] = {
     "Default", 
-
-    #if OIDN_CPU
+#if OIDN_CPU
     "CPU", 
-    #endif
-
-    #if OIDN_CUDA
+#endif
+#if OIDN_CUDA
     "CUDA (NVIDIA)",
-    #endif
-    
-    #if OIDN_HIP
+#endif   
+#if OIDN_HIP
     "HIP (AMD)",
-    #endif
-
-    #if OIDN_METAL
+#endif
+#if OIDN_METAL
     "Metal (Apple)", 
-    #endif
-
-    #if OIDN_SYCL
+#endif
+#if OIDN_SYCL
     "SYCL (Intel)", 
-    #endif
-    0
+#endif
+    nullptr
 };
 
-static const char* const OIDN_Filter[] = {"RT", "RTLightmap", 0};
-static const char* const OIDN_Quality[] = {"Default", "Fast", "Balanced", "High", 0};
-static const char* const OIDN_Mode[] = {"None", "sRGB", "HDR", 0};
+static const char* const kOIDNFilters[] = { "RT", "RTLightmap", nullptr };
+static const char* const kOIDNQualities[] = { "Default", "Fast", "Balanced", "High", nullptr };
+static const char* const kOIDNModes[] = { "None", "sRGB", "HDR", nullptr };
 
 class OIDNDenoiser {
     public:
-        OIDNDenoiser();
-        ~OIDNDenoiser();
+        OIDNDenoiser() = default;
+        ~OIDNDenoiser() = default;
+
+        OIDNDenoiser(const OIDNDenoiser&) = delete;
+        OIDNDenoiser& operator=(const OIDNDenoiser&) = delete;
+
+        OIDNDenoiser(OIDNDenoiser&&) noexcept = default;
+        OIDNDenoiser& operator=(OIDNDenoiser&&) noexcept = default;
+
+        void run(DenoiserData& data, bool deviceDirty, bool filterDirty);
 
         void setupDevice();
         void setupFilter();
 
-        void run(DenoiserData& data, bool deviceDirty, bool filterDirty);
+        int device_types = 0; // maps to kOIDNDevices
+        int filter_type = 0; // RT / RTLightmap
 
-        int device_type; // 0=Default, 1=CPU, 2=CUDA, 3=HIP, 4=Metal, 5=SYCL
-        int filter_type; // 0 = RT, 1 = RTLightmap
+        float filter_inputScale = 1.0f;
+        bool filter_cleanAux = false;
 
-        float filter_inputScale;
-        bool filter_cleanAux;
-        int filter_quality; // 0 = Default, 1 = Fast, 2 = Balanced, 3 = High
-        int filter_mode; // 0 = None, 1 = sRGB, 2 = HDR
+        int filter_quality = 0; // Default / Fast / Balanced / High
+        int filter_mode = 0; // None / sRGB / HDR
 
-        bool filter_directional; // Only for RTLightmap
+        bool filter_directional = false; // RTLightmap only
 
     private:
+
+        void rebuildDevice();
+        void rebuildFilter();
+
+        void allocateBuffers(size_t colorBytes);
+
         oidn::DeviceRef m_device;
         oidn::FilterRef m_filter;
 
@@ -65,19 +71,17 @@ class OIDNDenoiser {
         oidn::BufferRef m_albedoBuffer;
         oidn::BufferRef m_normalBuffer;
 
-        int m_width;
-        int m_height;
-
-        int m_defaultNumChannels;
-        bool m_filterDirty;
-        bool m_deviceDirty;
+        int m_width = 0;
+        int m_height = 0;
 
         bool m_hasAlbedo = false;
         bool m_hasNormal = false;
-        int m_lastDeviceType = 0;
-        int m_lastFilterType = 0;
-        
-        
-}; // OIDNDENOISER_H
 
-#endif
+        int m_lastDeviceType = -1;
+        int m_lastFilterType = -1;
+
+        bool m_filterDirty = true;
+        bool m_deviceDirty = true;
+};
+
+#endif // OIDNDENOISER_H

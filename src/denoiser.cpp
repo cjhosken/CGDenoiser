@@ -1,152 +1,205 @@
 #include "denoiser.h"
+
+#include <cstring>
 #include <DDImage/Black.h>
 #include <DDImage/Knobs.h>
 
-
-void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
+namespace
 {
-    if (aborted() || cancelled()) return;
-    
-    // Check connections
-    m_albedo_connected = !(dynamic_cast<DD::Image::Black*>(input(1)));
-    m_normal_connected = !(dynamic_cast<DD::Image::Black*>(input(2)));
-    m_motion_connected = !(dynamic_cast<DD::Image::Black*>(input(3)));
+    inline bool isConnected(DD::Image::Op* op)
+    {
+        return op && !dynamic_cast<DD::Image::Black*>(op);
+    }
 
-    DD::Image::Format imageFormat = input0().format();
-    m_width = imageFormat.width();
-    m_height = imageFormat.height();
-    DD::Image::Box imageBounds = input0().format();
+    inline void verticalFlipCopy(
+        const float* src,
+        float* dst,
+        int width,
+        int height,
+        int channels,
+        int chanStride)
+    {
+        for (int c = 0; c < channels; ++c)
+        {
+            const float* srcChan = src + chanStride * c;
+            float* dstChan = dst + c;
 
-    auto bufferSize = m_width * m_height * 3 * sizeof(float);
+            for (int y = 0; y < height; ++y)
+            {
+                const int dstRow = (height - 1 - y) * width * channels;
+                const int srcRow = y * width;
 
-    m_denoiserData.allocate(m_width, m_height, m_albedo_connected, m_normal_connected, m_motion_connected);
-    
-    auto fetchAndCopy = [&](int inputIdx, float* dstBuffer, DD::Image::ChannelSet mask, int numChans) {
-        if (dstBuffer == nullptr) return;
-
-        DD::Image::Iop* inputNode = dynamic_cast<DD::Image::Iop*>(input(inputIdx));
-        if (!inputNode || !inputNode->tryValidate(true)) return;
-
-        inputNode->request(imageBounds, mask, 0);
-        DD::Image::ImagePlane plane(imageBounds, false, mask, numChans);
-        inputNode->fetchPlane(plane);
-
-        const float* srcData = static_cast<const float*>(plane.readable());
-        if (!srcData) return;
-
-        auto chanStride = plane.chanStride();
-
-        for (int c = 0; c < numChans; c++) {
-            const float* srcChan = &srcData[chanStride * c];
-            float* dstPtr = dstBuffer + c;
-            
-            for (int y = 0; y < m_height; y++) {
-                // Vertical flip: Nuke (0,0 is bottom-left) to OIDN (0,0 is top-left)
-                int dstRowStart = ((m_height - y - 1) * m_width) * numChans;
-                for (int x = 0; x < m_width; x++) {
-                    *(dstPtr + dstRowStart + x * numChans) = srcChan[y * m_width + x];
+                for (int x = 0; x < width; ++x)
+                {
+                    dstChan[dstRow + x * channels] = srcChan[srcRow + x];
                 }
             }
         }
-    };
-
-    fetchAndCopy(0, m_denoiserData.getColor(), DD::Image::Mask_RGB, 3);
-
-    if (m_albedo_connected) {
-        fetchAndCopy(1, m_denoiserData.getAlbedo(), DD::Image::Mask_RGB, 3);
     }
 
-    if (m_normal_connected) {
-        fetchAndCopy(2, m_denoiserData.getNormal(), DD::Image::Mask_RGB, 3);
+    void fetchPlaneToBuffer(
+        DD::Image::Iop* input,
+        const DD::Image::Box& bounds,
+        const DD::Image::ChannelSet& mask,
+        int numChannels,
+        float* dst,
+        int width,
+        int height)
+    {
+        if (!input || !dst || !input->tryValidate(true))
+            return;
+
+        input->request(bounds, mask, 0);
+
+        DD::Image::ImagePlane plane(bounds, false, mask, numChannels);
+        input->fetchPlane(plane);
+
+        const float* src = static_cast<const float*>(plane.readable());
+        if (!src)
+            return;
+
+        verticalFlipCopy(src, dst, width, height, numChannels, plane.chanStride());
+    }
+}
+
+CGDenoiser::CGDenoiser(Node* node)
+    : PlanarIop(node)
+{
+    inputs(4);
+
+#if OIDN
+    m_oidn = std::make_unique<OIDNDenoiser>();
+#endif
+
+#if OPTIX
+    m_optix = std::make_unique<OptiXDenoiser>();
+#endif
+}
+
+void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
+{
+    if (aborted() || cancelled()) 
+        return;
+    
+    // Connections
+    m_albedoConnected = isConnected(input(1));
+    m_normalConnected = isConnected(input(2));
+    m_motionConnected = isConnected(input(3));
+
+    const auto format = input0().format();
+    m_width = format.width();
+    m_height = format.height();
+    const DD::Image::Box bounds = format;
+    
+    m_denoiserData.allocate(
+        m_width, 
+        m_height, 
+        m_albedoConnected, 
+        m_normalConnected, 
+        m_motionConnected);
+
+    fetchPlaneToBuffer(&input0(), bounds, DD::Image::Mask_RGB, 3,
+                        m_denoiserData.color(), m_width, m_height);
+
+    if (m_albedoConnected)
+    {
+        fetchPlaneToBuffer(input(1), bounds, DD::Image::Mask_RGB, 3,
+                        m_denoiserData.albedo(), m_width, m_height);
     }
 
-    if (m_motion_connected) {
+    if (m_normalConnected)
+    {
+        fetchPlaneToBuffer(input(2), bounds, DD::Image::Mask_RGB, 3,
+                        m_denoiserData.normal(), m_width, m_height);
+    }
+
+    if (m_motionConnected)
+    {
         DD::Image::ChannelSet motionMask;
         motionMask += DD::Image::Chan_Red;
         motionMask += DD::Image::Chan_Green;
 
-        fetchAndCopy(3, m_denoiserData.getMotion(), motionMask, 2);
+        fetchPlaneToBuffer(input(3), bounds, motionMask, 2,
+                        m_denoiserData.motion(), m_width, m_height);
     }
 
-    if (aborted() || cancelled()) return;
-
-    #if OIDN
-    if (m_engine == 0) {
+    if (aborted() || cancelled())
+        return;
+    
+#if OIDN
+    if (m_engine == 0) 
+    {
         m_oidn->run(m_denoiserData, m_deviceDirty, m_filterDirty);
     }
-    #endif
+#endif
 
-    #if OPTIX
-
-    int optix_engine_target = 1;
-
-    #if !OIDN
-        optix_engine_target = 0;
-    #endif
-
-    if (m_engine == optix_engine_target) {
+#if OPTIX
+    if (m_engine == 1)
+    {
         m_optix->run(m_denoiserData, m_deviceDirty, m_filterDirty);
     }
-    #endif
+#endif
 
-    #if !OIDN && !OPTIX
+#if !OIDN && !OPTIX
     std::memcpy(
-        m_denoiserData.getOutput(),
-        m_denoiserData.getColor(),
+        m_denoiserData.output(),
+        m_denoiserData.color(),
         m_width * m_height * 3 * sizeof(float)
     );
-    #endif
+#endif
 
     m_deviceDirty = false;
     m_filterDirty = false;
 
-    // Run OIDN denoising
-    // Write denoised output back
+    // Write output
     outputPlane.writable();
-    const float* outputData = m_denoiserData.getOutput();
+    const float* src = m_denoiserData.output();
 
-    const DD::Image::Channel channels[] = {
+    const DD::Image::Channel rgb[3] = {
         DD::Image::Channel::Chan_Red,
         DD::Image::Channel::Chan_Green,
         DD::Image::Channel::Chan_Blue
     };
     
-    for (int chanNo = 0; chanNo < 3; chanNo++)
+    for (int c = 0; c < 3; ++c)
     {
-        int c = outputPlane.chanNo(channels[chanNo]);
-        if (c < 0) continue;
+        const int chan = outputPlane.chanNo(rgb[c]);
+        if (chan < 0)
+            continue;
         
-        const float* srcPtr = outputData + chanNo;
+        const float* srcPtr = src + c;
 
-        for (int j = 0; j < m_height; j++) {
-            int srcRowStart = ((m_height - j - 1) * m_width) * 3;
-            for (int i = 0; i < m_width; i++) {
-                outputPlane.writableAt(i, j, c) = *(srcPtr + srcRowStart + i * 3);
+        for (int y = 0; y < m_height; ++y) 
+        {
+            const int srcRow = (m_height - 1 - y) * m_width * 3;
+            for (int x = 0; x < m_width; ++x) 
+            {
+                outputPlane.writableAt(x, y, c) = 
+                    srcPtr[srcRow + x * 3];
             }
         }
     }
 }
 
-void CGDenoiser::knobs(DD::Image::Knob_Callback f) {
+void CGDenoiser::knobs(DD::Image::Knob_Callback f) 
+{
 
-    Enumeration_knob(f, &m_engine, Engine, "engine", "Engine");
+    Enumeration_knob(f, reinterpret_cast<int*>(&m_engine), kEngineLabels, "engine", "Engine");
     Tooltip(f, "The technique used for denoising.");
 
+#if OIDN
     Divider(f);
 
-    #if OIDN
-
-    // OIDN
-    Enumeration_knob(f, &m_oidn->device_type, OIDN_Device, "oidn_device", "Device");
+    Enumeration_knob(f, &m_oidn->device_types, kOIDNDevices, "oidn_device", "Device");
     Tooltip(f, "The hardware backend used for OIDN denoising");
 
-    Enumeration_knob(f, &m_oidn->filter_type, OIDN_Filter, "oidn_filter", "Filter");
+    Enumeration_knob(f, &m_oidn->filter_type, kOIDNFilters, "oidn_filter", "Filter");
     Tooltip(f, "The filter method used for OIDN denoising. ");
 
-    Enumeration_knob(f, &m_oidn->filter_quality, OIDN_Quality, "oidn_quality", "Quality");
+    Enumeration_knob(f, &m_oidn->filter_quality, kOIDNQualities, "oidn_quality", "Quality");
     Tooltip(f, "Image quality.");
 
-    Enumeration_knob(f, &m_oidn->filter_mode, OIDN_Mode, "oidn_mode", "Mode");
+    Enumeration_knob(f, &m_oidn->filter_mode, kOIDNModes, "oidn_mode", "Mode");
     Tooltip(f, "The input image encoding. Use HDR unless the main input image is encoded with the sRGB (or 2.2 gamma) curve or is linear; in which case use sRGB; The output will be encoded with the same curve.");
 
     Bool_knob(f, &m_oidn->filter_cleanAux, "oidn_clean", "Clean Aux");
@@ -157,85 +210,59 @@ void CGDenoiser::knobs(DD::Image::Knob_Callback f) {
 
     Bool_knob(f, &m_oidn->filter_directional, "oidn_directional", "Directional");
     Tooltip(f, "Whether the input contains normalized coefficients (in [-1, 1]) of a directional lightmap (e.g. normalized L1 or higher spherical harmonics band with the L0 band divided out); if the range of the coefficients is different from [-1, 1], the inputScale parameter can be used to adjust the range without changing the stored values.");
-    
-    #endif
+#endif
 
-    // OptiX
-    #if OPTIX
+#if OPTIX
+    Divider(f);
 
     Enumeration_knob(f, &m_optix->model, OptiX_MODEL, "optix_model", "Model");
     Tooltip(f, "The method used for OptiX denoising. Temporal requires motionvectors.");
 
     Float_knob(f, &m_optix->blend, "optix_blend", "Blend");
     Tooltip(f, "Denoising amount. 1.0 is completely denoised.");
-
-    #endif
+#endif
 }
 
 int CGDenoiser::knob_changed(DD::Image::Knob* k) {
-    if (!k) return 0;
+    if (!k) 
+        return 0;
 
-    // --- Read CURRENT values from knobs (not member vars) ---
-    int engine = m_engine;
-    if (DD::Image::Knob* ek = knob("engine"))
-        engine = int(ek->get_value());
-
-    bool useOIDN = (engine == 0);
-
-    // --- Dirty flags ---
     if (k->is("engine") || k->is("oidn_device"))
         m_deviceDirty = true;
 
     m_filterDirty = true;
 
-    #if OIDN
+#if OIDN
+    const bool useOIDN = (m_engine == 0);
 
     int filter = m_oidn->filter_type;
-    if (DD::Image::Knob* fk = knob("oidn_filter"))
+    if (auto fk = knob("oidn_filter"))
         filter = int(fk->get_value());
 
-    bool isRT = (filter == 0);
+    const bool isRT = (filter == 0);
 
-
-    // --- OIDN knobs ---
-    const char* oidn_knobs[] = {
-        "oidn_device", "oidn_filter", "oidn_quality", 
-        "oidn_mode", "oidn_inputScale", "oidn_directional", "oidn_clean"
+    auto setVisible = [&](const char* name, bool v)
+    {
+        if (auto* kk = knob(name))
+            kk->visible(v);
     };
 
-    for (const char* name : oidn_knobs)
-    {
-        if (DD::Image::Knob* kk = knob(name))
-        {
-            bool v = useOIDN;
+    setVisible("oidn_device", useOIDN);
+    setVisible("oidn_filter", useOIDN);
+    setVisible("oidn_quality", useOIDN);
+    setVisible("oidn_clean", useOIDN);
+    setVisible("oidn_inputScale", useOIDN);
 
-            if (strcmp(name, "oidn_mode") == 0)
-                v = (useOIDN && isRT);
+    setVisible("oidn_mode", useOIDN && isRT);
+    setVisible("oidn_directional", useOIDN && !isRT);
+#endif
 
-            if (strcmp(name, "oidn_directional") == 0)
-                v = (useOIDN && !isRT);
+#if OPTIX
+    const bool useOptix = (m_engine == 1);
 
-            kk->visible(v);
-        }
-    } 
-
-    #endif
-
-    // --- OptiX knobs ---
-    #if OPTIX
-
-    #if !OIDN
-    useOIDN = false;
-    #endif
-
-    const char* optix_knobs[] = { "optix_model", "optix_blend" };
-
-    for (const char* name : optix_knobs)
-    {
-        if (DD::Image::Knob* kk = knob(name))
-            kk->visible(!useOIDN);
-    }
-    #endif
+    if (auto* k1 = knob("optix_model")) k1->visible(useOptix);
+    if (auto* k2 = knob("optix_blend")) k2->visible(useOptix);
+#endif
 
     return 1;
 }
@@ -251,14 +278,20 @@ const char* CGDenoiser::input_label(int n, char*) const
     }
 }
 
-void CGDenoiser::_validate(bool for_real) { copy_info(); }
+void CGDenoiser::_validate(bool) { copy_info(); }
 
-void CGDenoiser::getRequests(const DD::Image::Box& box, const DD::Image::ChannelSet& channels, int count, DD::Image::RequestOutput &reqData) const
+void CGDenoiser::getRequests(
+    const DD::Image::Box& box, 
+    const DD::Image::ChannelSet& channels, 
+    int count, 
+    DD::Image::RequestOutput &reqData) const
 {
-    int nInputs = (int)getInputs().size();
-    for (int i = 0; i < nInputs; i++) {
-        const DD::Image::ChannelSet channels = input(i)->info().channels();
-        input(i)->request(channels, count);
+    for (int i = 0; i < int(getInputs().size()); ++i)
+    {
+        auto* in = input(i);
+        if (!in) continue;
+
+        in->request(in->info().channels(), count);
     }
 }
 

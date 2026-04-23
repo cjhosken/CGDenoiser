@@ -1,57 +1,57 @@
 #include "denoiserData.h"
-#include <iostream>
+#include <algorithm>
 
-DenoiserData::DenoiserData()
-    : m_width(0), m_height(0), m_colorSize(0)
-{
-}
 
-DenoiserData::~DenoiserData()
+void DenoiserData::allocate(int width, int height, 
+    bool needAlbedo, 
+    bool needNormal, 
+    bool needMotion)
 {
-    deallocate();
-}
-
-void DenoiserData::allocate(int width, int height, bool hasAlbedo, bool hasNormal, bool hasMotion)
-{
-    if (m_width == width && m_height == height && 
-        hasAlbedo == !m_albedo.empty() && 
-        hasNormal == !m_normal.empty() &&
-        hasMotion == !m_motion.empty())
+    if (width <= 0 || height <= 0)
     {
-        return; // Already allocated with same configuration
+        clear();
+        return;
     }
 
-    deallocate();
+    const bool sameConfig = 
+        (m_width == width && m_height == height) &&
+        (needAlbedo = hasAlbedo()) &&
+        (needNormal == hasNormal()) &&
+        (needMotion == hasMotion());
+
+    if (sameConfig)
+        return;
 
     m_width = width;
     m_height = height;
 
-    // Calculate buffer sizes
-    m_colorSize = static_cast<size_t>(width) * height * 3 * sizeof(float);
-    m_motionSize = static_cast<size_t>(width) * height * 2 * sizeof(float);
+    const size_t pixels = static_cast<size_t>(width) * height;
+
+    m_colorBytes = pixels * 3 * sizeof(float);
+    m_motionBytes = pixels * 2 * sizeof(float);
 
     // Allocate color and output buffers (always needed)
-    m_color.resize(width * height * 3, 0.0f);
-    m_output.resize(width * height * 3, 0.0f);
+    m_color.resize(pixels * 3);
+    m_output.resize(pixels * 3);
 
     // Allocate optional buffers
-    if (hasAlbedo)
-    {
-        m_albedo.resize(width * height * 3, 0.0f);
-    }
+    if (needAlbedo)
+        m_albedo.resize(pixels * 3);
+    else
+        m_albedo.clear();
 
-    if (hasNormal)
-    {
-        m_normal.resize(width * height * 3, 0.0f);
-    }
+    if (needNormal)
+        m_normal.resize(pixels * 3);
+    else
+        m_normal.clear();
 
-    if (hasMotion)
-    {
-        m_motion.resize(width * height * 2, 0.0f);
-    }
+    if (needMotion)
+        m_motion.resize(pixels * 2);
+    else
+        m_motion.clear();
 }
 
-void DenoiserData::deallocate()
+void DenoiserData::clear() noexcept
 {
     m_color.clear();
     m_albedo.clear();
@@ -59,43 +59,39 @@ void DenoiserData::deallocate()
     m_motion.clear();
     m_output.clear();
 
-    m_width = 0;
-    m_height = 0;
-    m_colorSize = 0;
+    m_width = m_height = 0;
+    m_colorBytes = m_motionBytes = 0;
 }
 
-void DenoiserData::setColor(const float* data, size_t size)
+void DenoiserData::copyBuffer(std::vector<float>& dst,
+                                const float* src,
+                                size_t maxBytes)
 {
-    if (!data || m_color.empty())
+    if (!src || dst.empty())
         return;
 
-    size_t copySize = (size < m_colorSize) ? size : m_colorSize;
-    std::memcpy(m_color.data(), data, copySize);
+    const size_t dstBytes = dst.size() * sizeof(float);
+    const size_t bytes = std::min(dstBytes, maxBytes);
+
+    std::memcpy(dst.data(), src, bytes);
 }
 
-void DenoiserData::setAlbedo(const float* data, size_t size)
+void DenoiserData::setColor(const float* data, size_t bytes)
 {
-    if (!data || m_albedo.empty())
-        return;
-
-    size_t copySize = (size < m_colorSize) ? size : m_colorSize;
-    std::memcpy(m_albedo.data(), data, copySize);
+    copyBuffer(m_color, data, bytes);
 }
 
-void DenoiserData::setNormal(const float* data, size_t size)
+void DenoiserData::setAlbedo(const float* data, size_t bytes)
 {
-    if (!data || m_normal.empty())
-        return;
-
-    size_t copySize = (size < m_colorSize) ? size : m_colorSize;
-    std::memcpy(m_normal.data(), data, copySize);
+    copyBuffer(m_albedo, data, bytes);
 }
 
-void DenoiserData::setMotion(const float* data, size_t size)
+void DenoiserData::setNormal(const float* data, size_t bytes)
 {
-    if (!data || m_motion.empty())
-        return;
+    copyBuffer(m_normal, data, bytes);
+}
 
-    size_t copySize = (size < m_colorSize) ? size : m_motionSize;
-    std::memcpy(m_motion.data(), data, copySize);
+void DenoiserData::setMotion(const float* data, size_t bytes)
+{
+    copyBuffer(m_motion, data, bytes);
 }

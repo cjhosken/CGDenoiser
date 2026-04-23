@@ -1,65 +1,52 @@
 #include "oidnDenoiser.h"
+
 #include <algorithm>
-
-OIDNDenoiser::OIDNDenoiser() {
-    m_width = 0;
-    m_height = 0;
-
-    m_deviceDirty = true;
-    m_filterDirty = true;
-    device_type = 0;
-    filter_type = 0;
-    filter_mode = 0;
-
-    filter_inputScale = 1.0;
-    filter_cleanAux = false;
-    filter_quality = 0;
-    filter_directional = false;
-
-    m_defaultNumChannels = 3;
-}
-
-OIDNDenoiser::~OIDNDenoiser() {}
+#include <iostream>
 
 void OIDNDenoiser::setupDevice()
 {
     // Destroy EVERYTHING tied to previous device
-    m_filter = nullptr;
+    m_filter = {};
     m_colorBuffer = {};
     m_outputBuffer = {};
     m_albedoBuffer = {};
     m_normalBuffer = {};
+    m_device = {};
 
-    m_device = nullptr;
-
-    std::vector<oidn::DeviceType> device_list = {
+    const std::vector<oidn::DeviceType> devices = {
         oidn::DeviceType::Default
-        #if OIDN_CPU
+#if OIDN_CPU
         , oidn::DeviceType::CPU
-        #endif
-        #if OIDN_CUDA
+#endif
+#if OIDN_CUDA
         , oidn::DeviceType::CUDA
-        #endif
-        #if OIDN_HIP
+#endif
+#if OIDN_HIP
         , oidn::DeviceType::HIP
-        #endif
-        #if OIDN_METAL
+#endif
+#if OIDN_METAL
         , oidn::DeviceType::METAL
-        #endif
-        #if OIDN_SYCL
+#endif
+#if OIDN_SYCL
         , oidn::DeviceType::SYCL
-        #endif
+#endif
     };
 
-    m_device = oidn::newDevice(device_list.at(device_type));
+    if (device_types < 0 || device_types >= static_cast<int>(devices.size()))
+    {
+        std::cerr << "[OIDN] Invalid device index, falling back to Default\n";
+        device_types = 0;
+    }
+
+    m_device = oidn::newDevice(devices[device_types]);
 
     m_device.setErrorFunction(
         [](void*, oidn::Error code, const char* msg)
         {
-            std::cerr << "[OIDN] (" << (int)code << ") " << (msg ? msg : "") << "\n";
+            std::cerr << "[OIDN] (" << static_cast<int>(code) 
+                        << ") " << (msg ? msg : "") << "\n";
         },
-        nullptr
-    );
+        nullptr);
 
     m_device.commit();
 
@@ -68,49 +55,50 @@ void OIDNDenoiser::setupDevice()
 }
 
 
-void OIDNDenoiser::setupFilter() {
-    m_filter = nullptr; // KILL the old filter object immediately
+void OIDNDenoiser::setupFilter() 
+{
+    m_filter = {};
 
-    m_filter = m_device.newFilter(OIDN_Filter[filter_type]);
+    m_filter = m_device.newFilter(kOIDNFilters[filter_type]);
     if (!m_filter) {
-        std::cerr << "CRITICAL: OIDN Failed to create filter type: " << OIDN_Filter[filter_type] << std::endl;
+        std::cerr << "CRITICAL: OIDN Failed to create filter\n";
         return;
     }
 
     m_filter.setImage("color", m_colorBuffer, oidn::Format::Float3, m_width, m_height);
     m_filter.setImage("output", m_outputBuffer, oidn::Format::Float3, m_width, m_height);
 
-    if (m_albedoBuffer)
+    if (m_hasAlbedo)
     {
         m_filter.setImage("albedo", m_albedoBuffer, oidn::Format::Float3, m_width, m_height);
 
-        if (m_normalBuffer)
+        if (m_hasNormal)
         {
             m_filter.setImage("normal", m_normalBuffer, oidn::Format::Float3, m_width, m_height);
         }
     }
 
-    if (filter_type == 0)
+    if (filter_type == 0) // RT
     {
         m_filter.set("hdr", filter_mode == 2);
         m_filter.set("srgb", filter_mode == 1);
     }
-    else if (filter_type == 1)
+    else // RTLightmap
     {
         m_filter.set("directional", filter_directional);
     }
 
-    m_filter.set("inputScale", std::max(0.01f, filter_inputScale));
-    m_filter.set("cleanAux", filter_cleanAux);
-
-    static const oidn::Quality quality[] = {
+    static const oidn::Quality qualities[] = {
         oidn::Quality::Default,
         oidn::Quality::Fast,
         oidn::Quality::Balanced,
         oidn::Quality::High
     };
 
-    m_filter.set("quality", quality[filter_quality]);
+    m_filter.set("quality", qualities[std::clamp(filter_quality, 0, 3)]);
+    m_filter.set("inputScale", std::max(0.01f, filter_inputScale));
+    m_filter.set("cleanAux", filter_cleanAux);
+
     m_filter.commit();
 
     m_filterDirty = false;
@@ -119,35 +107,32 @@ void OIDNDenoiser::setupFilter() {
 
 void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 {
-    int w = data.getWidth();
-    int h = data.getHeight();
+    if (!data.valid())
+        return;
 
-    bool hasAlbedo = data.hasAlbedo();
-    bool hasNormal = data.hasNormal();
+    const int w = data.width();
+    const int h = data.height();
 
-    m_deviceDirty = m_deviceDirty || deviceDirty;
-    m_filterDirty = m_filterDirty || filterDirty;
+    const bool hasAlbedo = data.hasAlbedo();
+    const bool hasNormal = data.hasNormal();
 
-    if (!m_device || m_deviceDirty || device_type != m_lastDeviceType)
+    m_deviceDirty |= deviceDirty;
+    m_filterDirty |= filterDirty;
+
+    if (!m_device || m_deviceDirty || device_types != m_lastDeviceType)
     {
         setupDevice();
-        m_lastDeviceType = device_type;
+        m_lastDeviceType = device_types;
     }
 
     if (!m_device)
         return;
 
     const bool dimsChanged = (w != m_width || h != m_height);
-    bool auxChanged =
-        (hasAlbedo != m_hasAlbedo ||
-         hasNormal != m_hasNormal);
+    bool auxChanged = (hasAlbedo != m_hasAlbedo ||
+                        hasNormal != m_hasNormal);
 
-
-    bool filterChanged =
-        m_filterDirty ||
-        dimsChanged ||
-        auxChanged ||
-        (filter_type != m_lastFilterType);
+    bool filterTypeChanged = (filter_type != m_lastFilterType);
 
     m_width = w;
     m_height = h;
@@ -157,56 +142,53 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
     if (dimsChanged || auxChanged || !m_colorBuffer || !m_outputBuffer)
     {
-        size_t bufferSize = data.getColorSize();
+        const size_t bytes = data.colorBytes();
 
-        m_colorBuffer = m_device.newBuffer(bufferSize);
-        m_outputBuffer = m_device.newBuffer(bufferSize);
+        m_colorBuffer = m_device.newBuffer(bytes);
+        m_outputBuffer = m_device.newBuffer(bytes);
 
-        m_albedoBuffer = hasAlbedo ? m_device.newBuffer(bufferSize) : oidn::BufferRef{};
-        m_normalBuffer = hasNormal ? m_device.newBuffer(bufferSize) : oidn::BufferRef{};
+        m_albedoBuffer = hasAlbedo ? m_device.newBuffer(bytes) : oidn::BufferRef{};
+        m_normalBuffer = hasNormal ? m_device.newBuffer(bytes) : oidn::BufferRef{};
 
         m_filterDirty = true;
     }
 
-    if (m_filterDirty || !m_filter)
+    if (m_filterDirty || filterTypeChanged || !m_filter)
     {
         setupFilter();
-        m_filterDirty = false;
     }
 
-    size_t bufferSize = data.getColorSize();
-
-    m_colorBuffer.write(0, bufferSize, data.getColor());
-
-    if (data.hasAlbedo()) {
-        m_albedoBuffer.write(0, bufferSize, data.getAlbedo());
-    }
-
-    if (data.hasNormal()) {
-        m_normalBuffer.write(0, bufferSize, data.getNormal());
-    }
-
-    if (!m_filter) {
-        std::cerr << "[OIDN] Filter is null, skipping.\n";
+    if (!m_filter)
+    {
+        std::cerr << "[OIDN] Filter is null, skipping\n";
         return;
     }
 
+    const size_t bytes = data.colorBytes();
+
+    m_colorBuffer.write(0, bytes, data.color());
+
+    if (data.hasAlbedo())
+        m_albedoBuffer.write(0, bytes, data.albedo());
+
+    if (data.hasNormal())
+        m_normalBuffer.write(0, bytes, data.normal());
+    
     m_filter.execute();
 
-    const char* message = nullptr;
-    const auto err = m_device.getError(message);
-    if (err != oidn::Error::None)
+    const char* msg = nullptr;
+    if (m_device.getError(msg) != oidn::Error::None)
     {
-        std::cerr << "[OIDN Error] (" << static_cast<int>(err) << ") " << (message ? message : "") << std::endl;
+        std::cerr << "[OIDN Error] " << (msg ? msg : "") << "\n";
         return;
     }
 
-    float* outputPtr = data.getOutput();
-    if (!outputPtr)
+    float* out = data.output();
+    if (!out)
     {
-        std::cerr << "[OIDN Error] Output buffer is null!" << std::endl;
+        std::cerr << "[OIDN] Output buffer is null\n";
         return;
     }
 
-    m_outputBuffer.read(0, bufferSize, outputPtr);
+    m_outputBuffer.read(0, bytes, out);
 }

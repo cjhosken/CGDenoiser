@@ -2,98 +2,78 @@
 #define DENOISER_DATA_H
 
 #include <vector>
-#include <cstring>
+#include <cstddef>
 
-/**
- * @class DenoiserData
- * @brief Shared data structure for storing denoising input/output buffers
- * 
- * This class manages memory for image data that can be used by both
- * OIDN and OptiX denoisers, eliminating duplication and simplifying
- * data flow management.
- */
+
 class DenoiserData
 {
 public:
-    DenoiserData();
-    ~DenoiserData();
+    DenoiserData() = default;
+    ~DenoiserData() = default;
 
-    /**
-     * @brief Allocate buffers based on dimensions and channel requirements
-     * @param width Image width in pixels
-     * @param height Image height in pixels
-     * @param hasAlbedo Whether to allocate albedo buffer
-     * @param hasNormal Whether to allocate normal buffer
-     * @param hasMotion Whether to allocate motion buffer
-     */
-    void allocate(int width, int height, bool hasAlbedo = false, bool hasNormal = false, bool hasMotion = false);
+    DenoiserData(const DenoiserData&) = delete;
+    DenoiserData& operator=(const DenoiserData&) = delete;
 
-    /**
-     * @brief Release all allocated buffers
-     */
-    void deallocate();
+    DenoiserData(DenoiserData&&) noexcept = default;
+    DenoiserData& operator=(DenoiserData&&) noexcept = default;
 
-    /**
-     * @brief Set color buffer data
-     */
-    void setColor(const float* data, size_t size);
+    void allocate(int width, int height, 
+        bool needAlbedo = false, 
+        bool needNormal = false, 
+        bool needMotion = false
+    );
 
-    /**
-     * @brief Set albedo buffer data
-     */
-    void setAlbedo(const float* data, size_t size);
-
-    /**
-     * @brief Set normal buffer data
-     */
-    void setNormal(const float* data, size_t size);
+    void clear() noexcept;
 
 
-    /**
-     * @brief Set motion buffer data
-     */
-    void setMotion(const float* data, size_t size);
+    void setColor(const float* data, size_t bytes);
+    void setAlbedo(const float* data, size_t bytes);
+    void setNormal(const float* data, size_t bytes);
+    void setMotion(const float* data, size_t bytes);
 
-    // Accessors
-    int getWidth() const { return m_width; }
-    int getHeight() const { return m_height; }
-    size_t getColorSize() const { return m_colorSize; }
-    size_t getMotionSize() const { return m_motionSize; }
+    int width() const noexcept { return m_width; }
+    int height() const noexcept { return m_height; }
 
-    float* getColor() { return m_color.data(); }
-    const float* getColor() const { return m_color.data(); }
+    size_t colorBytes() const { return m_colorBytes; }
+    size_t motionBytes() const { return m_motionBytes; }
 
-    float* getAlbedo() { return m_albedo.empty() ? nullptr : m_albedo.data(); }
-    const float* getAlbedo() const { return m_albedo.empty() ? nullptr : m_albedo.data(); }
+    float* color() noexcept { return m_color.data(); }
+    const float* color() const noexcept { return m_color.data(); }
 
-    float* getNormal() { return m_normal.empty() ? nullptr : m_normal.data(); }
-    const float* getNormal() const { return m_normal.empty() ? nullptr : m_normal.data(); }
+    float* albedo() noexcept { return m_albedo.empty() ? nullptr : m_albedo.data(); }
+    const float* albedo() const noexcept { return m_albedo.empty() ? nullptr : m_albedo.data(); }
 
-    float* getMotion() { return m_motion.empty() ? nullptr : m_motion.data(); }
-    const float* getMotion() const { return m_motion.empty() ? nullptr : m_motion.data(); }
+    float* normal() noexcept { return m_normal.empty() ? nullptr : m_normal.data(); }
+    const float* normal() const noexcept { return m_normal.empty() ? nullptr : m_normal.data(); }
 
-    float* getOutput() { return m_output.data(); }
-    const float* getOutput() const { return m_output.data(); }
+    float* motion() noexcept { return m_motion.empty() ? nullptr : m_motion.data(); }
+    const float* motion() const noexcept { return m_motion.empty() ? nullptr : m_motion.data(); }
+
+    float* output() noexcept { return m_output.data(); }
+    const float* output() const noexcept { return m_output.data(); }
     
 
     // Status checks
-    bool hasAlbedo() const { return !m_albedo.empty(); }
-    bool hasNormal() const { return !m_normal.empty(); }
-    bool hasMotion() const { return !m_motion.empty(); }
-    bool isAllocated() const { return m_width > 0 && m_height > 0; }
+    bool hasAlbedo() const noexcept { return !m_albedo.empty(); }
+    bool hasNormal() const noexcept { return !m_normal.empty(); }
+    bool hasMotion() const noexcept { return !m_motion.empty(); }
+    bool valid() const noexcept { return m_width > 0 && m_height > 0; }
 
 private:
-    int m_width;
-    int m_height;
+    void copyBuffer(std::vector<float>& dst, const float * src, size_t maxBytes);
+
+private:
+    int m_width = 0;
+    int m_height = 0;
+
+    size_t m_colorBytes = 0;
+    size_t m_motionBytes = 0;
 
     std::vector<float> m_color;      // RGB color data (3 channels)
     std::vector<float> m_albedo;     // RGB albedo data (3 channels) - optional
     std::vector<float> m_normal;     // RGB normal data (3 channels) - optional
     std::vector<float> m_motion;     // UV motion data (2 channels) - optional
     std::vector<float> m_output;     // RGB output data (3 channels)
-
-    size_t m_colorSize;  // Size in bytes for color/albedo/normal buffers
-    size_t m_motionSize;  // Size in bytes for color/albedo/normal buffers
 };
 
 #endif // DENOISER_DATA_H
