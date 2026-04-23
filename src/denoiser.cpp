@@ -80,6 +80,9 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
     }
     #endif
 
+    m_deviceDirty = false;
+    m_filterDirty = false;
+
     // Run OIDN denoising
     // Write denoised output back
     outputPlane.writable();

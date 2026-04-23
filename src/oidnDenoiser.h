@@ -34,7 +34,7 @@ static const char* const OIDN_Device[] = {
 
 static const char* const OIDN_Filter[] = {"RT", "RTLightmap", 0};
 static const char* const OIDN_Quality[] = {"Default", "Fast", "Balanced", "High", 0};
-static const char* const OIDN_Mode[] = {"None", "sRGB", "HDR"};
+static const char* const OIDN_Mode[] = {"None", "sRGB", "HDR", 0};
 
 class OIDNDenoiser {
     public:
@@ -70,6 +70,7 @@ class OIDNDenoiser {
 
         int m_defaultNumChannels;
         bool m_filterDirty;
+        bool m_deviceDirty;
 
         bool m_hasAlbedo = false;
         bool m_hasNormal = false;

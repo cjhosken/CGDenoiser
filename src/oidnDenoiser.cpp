@@ -5,6 +5,7 @@ OIDNDenoiser::OIDNDenoiser() {
     m_width = 0;
     m_height = 0;
 
+    m_deviceDirty = true;
     m_filterDirty = true;
     device_type = 0;
     filter_type = 0;
@@ -50,12 +51,7 @@ void OIDNDenoiser::setupDevice()
         #endif
     };
 
-    std::cout << "Making new device..." << std::endl;
-
     m_device = oidn::newDevice(device_list.at(device_type));
-
-    std::cout << "New device made!" << std::endl;
-
 
     m_device.setErrorFunction(
         [](void*, oidn::Error code, const char* msg)
@@ -67,6 +63,7 @@ void OIDNDenoiser::setupDevice()
 
     m_device.commit();
 
+    m_deviceDirty = false;
     m_filterDirty = true;
 }
 
@@ -86,11 +83,11 @@ void OIDNDenoiser::setupFilter() {
     if (m_albedoBuffer)
     {
         m_filter.setImage("albedo", m_albedoBuffer, oidn::Format::Float3, m_width, m_height);
-    }
 
-    if (m_normalBuffer)
-    {
-        m_filter.setImage("normal", m_normalBuffer, oidn::Format::Float3, m_width, m_height);
+        if (m_normalBuffer)
+        {
+            m_filter.setImage("normal", m_normalBuffer, oidn::Format::Float3, m_width, m_height);
+        }
     }
 
     if (filter_type == 0)
@@ -128,7 +125,10 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
     bool hasAlbedo = data.hasAlbedo();
     bool hasNormal = data.hasNormal();
 
-    if (!m_device || deviceDirty || device_type != m_lastDeviceType)
+    m_deviceDirty = m_deviceDirty || deviceDirty;
+    m_filterDirty = m_filterDirty || filterDirty;
+
+    if (!m_device || m_deviceDirty || device_type != m_lastDeviceType)
     {
         setupDevice();
         m_lastDeviceType = device_type;
@@ -144,7 +144,7 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
 
     bool filterChanged =
-        filterDirty ||
+        m_filterDirty ||
         dimsChanged ||
         auxChanged ||
         (filter_type != m_lastFilterType);
