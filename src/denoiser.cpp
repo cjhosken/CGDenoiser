@@ -288,11 +288,6 @@ int CGDenoiser::knob_changed(DD::Image::Knob* k) {
 #if OPTIX
     const bool useOptix = (m_engine == 1);
 
-    if (k->is("optix_model")) {
-        std::cout << "[OptiX] Model changed!" << std::endl;
-        invalidate();
-    }
-
     if (auto* k1 = knob("optix_model")) k1->visible(useOptix);
     if (auto* k2 = knob("optix_blend")) k2->visible(useOptix);
 #endif
@@ -322,7 +317,7 @@ void CGDenoiser::getRequests(
     int count, 
     DD::Image::RequestOutput &reqData) const
 {
-    const DD::Image::Box fullBox = info().box();
+    const DD::Image::Box fullBox = input0().info().box();
 
     for (int i = 0; i < inputs(); ++i)
     {

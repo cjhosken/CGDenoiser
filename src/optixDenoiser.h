@@ -16,7 +16,10 @@
 #include <optix.h>
 #include <optix_stubs.h>
 
-static const char* const OptiX_MODEL[] = {"LDR", "HDR", "AOV", "Temporal", "Temporal AOV", "Upscale (2x)", "Temporal Upscale (2x)", 0};
+static const char* const OptiX_MODEL[] = {
+    "LDR", "HDR", "AOV", "Temporal", "Temporal AOV", 
+    // "Upscale (2x)", "Temporal Upscale (2x)", 
+    0};
 
 class OptiXDenoiser {
     public:

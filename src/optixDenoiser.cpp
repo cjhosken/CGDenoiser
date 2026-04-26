@@ -104,8 +104,8 @@ void OptiXDenoiser::setupDenoiser(int w, int h) {
         case 2: kind = OPTIX_DENOISER_MODEL_KIND_AOV; break;
         case 3: kind = OPTIX_DENOISER_MODEL_KIND_TEMPORAL; break;
         case 4: kind = OPTIX_DENOISER_MODEL_KIND_TEMPORAL_AOV; break;
-        case 5: kind = OPTIX_DENOISER_MODEL_KIND_UPSCALE2X; break;
-        case 6: kind = OPTIX_DENOISER_MODEL_KIND_TEMPORAL_UPSCALE2X; break;
+        //case 5: kind = OPTIX_DENOISER_MODEL_KIND_UPSCALE2X; break;
+        //case 6: kind = OPTIX_DENOISER_MODEL_KIND_TEMPORAL_UPSCALE2X; break;
         default: kind = OPTIX_DENOISER_MODEL_KIND_HDR;
     }
 
