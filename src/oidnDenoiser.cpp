@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <iostream>
+#include <limits>
+#include <cmath>
 
 void OIDNDenoiser::setupDevice()
 {
@@ -89,14 +91,22 @@ void OIDNDenoiser::setupFilter()
     }
 
     static const oidn::Quality qualities[] = {
-        oidn::Quality::Default,
         oidn::Quality::Fast,
         oidn::Quality::Balanced,
         oidn::Quality::High
     };
 
-    m_filter.set("quality", qualities[std::clamp(filter_quality, 0, 3)]);
-    m_filter.set("inputScale", std::max(0.01f, filter_inputScale));
+    m_filter.set("quality", qualities[std::clamp(filter_quality, 0, 2)]);
+
+    if (filter_inputScale <= 0.0f)
+    {
+        m_filter.set("inputScale", std::numeric_limits<float>::quiet_NaN());
+    }
+    else
+    {
+        m_filter.set("inputScale", filter_inputScale);
+    }
+
     m_filter.set("cleanAux", filter_cleanAux);
 
     m_filter.commit();
@@ -163,6 +173,30 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
         std::cerr << "[OIDN] Filter is null, skipping\n";
         return;
     }
+
+
+    const size_t pixels = static_cast<size_t>(w) * h;
+
+    auto sanitize = [](float* data, size_t count)
+    {
+        if (!data) return;
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            if (!std::isfinite(data[i]))
+                data[i] = 0.0f;
+        }
+    };
+
+    // sanitize ALL inputs going into OIDN
+    sanitize(data.color(), pixels * 3);
+
+    if (data.hasAlbedo())
+        sanitize(data.albedo(), pixels * 3);
+
+    if (data.hasNormal())
+        sanitize(data.normal(), pixels * 3);
+
 
     const size_t bytes = data.colorBytes();
 

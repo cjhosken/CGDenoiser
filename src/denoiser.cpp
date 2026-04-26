@@ -86,10 +86,16 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
     m_normalConnected = isConnected(input(2));
     m_motionConnected = isConnected(input(3));
 
-    const auto format = input0().format();
-    m_width = format.width();
-    m_height = format.height();
-    const DD::Image::Box bounds = format;
+
+    const DD::Image::Box box = input0().info().box();
+
+    m_width = box.w();
+    m_height = box.h();
+
+    const int x0 = box.x();
+    const int y0 = box.y();
+
+    const DD::Image::Box bounds = box;
     
     m_denoiserData.allocate(
         m_width, 
@@ -169,12 +175,16 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
         
         const float* srcPtr = src + c;
 
-        for (int y = 0; y < m_height; ++y) 
+        for (unsigned int y = 0; y < m_height; ++y) 
         {
+            int py = y0 + y;
             const int srcRow = (m_height - 1 - y) * m_width * 3;
-            for (int x = 0; x < m_width; ++x) 
+
+            for (unsigned int x = 0; x < m_width; ++x) 
             {
-                outputPlane.writableAt(x, y, c) = 
+                int px = x0 + x;
+
+                outputPlane.writableAt(px, py, c) = 
                     srcPtr[srcRow + x * 3];
             }
         }
@@ -278,7 +288,9 @@ const char* CGDenoiser::input_label(int n, char*) const
     }
 }
 
-void CGDenoiser::_validate(bool) { copy_info(); }
+void CGDenoiser::_validate(bool) { 
+    copy_info(); 
+}
 
 void CGDenoiser::getRequests(
     const DD::Image::Box& box, 
@@ -286,12 +298,12 @@ void CGDenoiser::getRequests(
     int count, 
     DD::Image::RequestOutput &reqData) const
 {
-    for (int i = 0; i < int(getInputs().size()); ++i)
-    {
-        auto* in = input(i);
-        if (!in) continue;
+    const DD::Image::Box fullBox = input0().info().box();
 
-        in->request(in->info().channels(), count);
+    for (int i = 0; i < inputs(); ++i)
+    {
+        if (auto* in = input(i))
+            in->request(fullBox, in->info().channels(), count);
     }
 }
 

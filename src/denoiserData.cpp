@@ -1,6 +1,6 @@
 #include "denoiserData.h"
 #include <algorithm>
-
+#include <cstring>
 
 void DenoiserData::allocate(int width, int height, 
     bool needAlbedo, 
@@ -15,7 +15,7 @@ void DenoiserData::allocate(int width, int height,
 
     const bool sameConfig = 
         (m_width == width && m_height == height) &&
-        (needAlbedo = hasAlbedo()) &&
+        (needAlbedo == hasAlbedo()) &&
         (needNormal == hasNormal()) &&
         (needMotion == hasMotion());
 
@@ -30,25 +30,20 @@ void DenoiserData::allocate(int width, int height,
     m_colorBytes = pixels * 3 * sizeof(float);
     m_motionBytes = pixels * 2 * sizeof(float);
 
+
     // Allocate color and output buffers (always needed)
-    m_color.resize(pixels * 3);
-    m_output.resize(pixels * 3);
+    m_color.resize(pixels * 3, 0.0f);
+    m_output.resize(pixels * 3, 0.0f);
 
     // Allocate optional buffers
     if (needAlbedo)
-        m_albedo.resize(pixels * 3);
-    else
-        m_albedo.clear();
+        m_albedo.resize(pixels * 3, 0.0f);
 
     if (needNormal)
-        m_normal.resize(pixels * 3);
-    else
-        m_normal.clear();
+        m_normal.resize(pixels * 3, 0.0f);
 
     if (needMotion)
-        m_motion.resize(pixels * 2);
-    else
-        m_motion.clear();
+        m_motion.resize(pixels * 2, 0.0f);
 }
 
 void DenoiserData::clear() noexcept

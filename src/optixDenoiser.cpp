@@ -3,6 +3,7 @@
 #include <cuda_runtime.h>
 #include <optix_function_table_definition.h> // Keep it ONLY here
 #include "optixDenoiser.h"
+#include <cstring>
 
 OptiXDenoiser::OptiXDenoiser() {
     model = 0;
@@ -141,11 +142,11 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
     }
         
     if (m_denoiserDirty) {
-        setupDenoiser(data.getWidth(), data.getHeight());
+        setupDenoiser(data.width(), data.height());
     }
     
-    int w = data.getWidth();
-    int h = data.getHeight();
+    int w = data.width();
+    int h = data.height();
 
     std::cout << "[OptiX] Creating Buffers and Loading Data..." << std::endl;
 
@@ -170,16 +171,16 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
     if (data.hasMotion() && !m_dMotion)
         cudaMalloc((void**)&m_dMotion, sizeFlow);
 
-    cudaMemcpy((void*)m_dColor, data.getColor(), sizeColor, cudaMemcpyHostToDevice);
+    cudaMemcpy((void*)m_dColor, data.color(), sizeColor, cudaMemcpyHostToDevice);
 
     if (data.hasAlbedo())
-        cudaMemcpy((void*)m_dAlbedo, data.getAlbedo(), sizeColor, cudaMemcpyHostToDevice);
+        cudaMemcpy((void*)m_dAlbedo, data.albedo(), sizeColor, cudaMemcpyHostToDevice);
 
     if (data.hasNormal())
-        cudaMemcpy((void*)m_dNormal, data.getNormal(), sizeColor, cudaMemcpyHostToDevice);
+        cudaMemcpy((void*)m_dNormal, data.normal(), sizeColor, cudaMemcpyHostToDevice);
 
     if (data.hasMotion())
-        cudaMemcpy((void*)m_dMotion, data.getMotion(), sizeFlow, cudaMemcpyHostToDevice);
+        cudaMemcpy((void*)m_dMotion, data.motion(), sizeFlow, cudaMemcpyHostToDevice);
 
 
     std::cout << "[OptiX] Got Data! Prepping Denoiser..." << std::endl;
@@ -309,7 +310,7 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
     cudaDeviceSynchronize();
 
-    cudaMemcpy(data.getOutput(), (void*)m_dOutput, sizeColor, cudaMemcpyDeviceToHost);
+    cudaMemcpy(data.output(), (void*)m_dOutput, sizeColor, cudaMemcpyDeviceToHost);
 
     if (model == 2)
     {

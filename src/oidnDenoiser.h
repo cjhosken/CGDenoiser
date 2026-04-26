@@ -26,7 +26,7 @@ static const char* const kOIDNDevices[] = {
 };
 
 static const char* const kOIDNFilters[] = { "RT", "RTLightmap", nullptr };
-static const char* const kOIDNQualities[] = { "Default", "Fast", "Balanced", "High", nullptr };
+static const char* const kOIDNQualities[] = { "Fast", "Balanced", "High", nullptr };
 static const char* const kOIDNModes[] = { "None", "sRGB", "HDR", nullptr };
 
 class OIDNDenoiser {
@@ -48,11 +48,11 @@ class OIDNDenoiser {
         int device_types = 0; // maps to kOIDNDevices
         int filter_type = 0; // RT / RTLightmap
 
-        float filter_inputScale = 1.0f;
+        float filter_inputScale = 0.0f;
         bool filter_cleanAux = false;
 
-        int filter_quality = 0; // Default / Fast / Balanced / High
-        int filter_mode = 0; // None / sRGB / HDR
+        int filter_quality = 1; // Fast / Balanced / High
+        int filter_mode = 2; // None / sRGB / HDR
 
         bool filter_directional = false; // RTLightmap only
 
