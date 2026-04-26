@@ -16,7 +16,7 @@
 #include <optix.h>
 #include <optix_stubs.h>
 
-static const char* const OptiX_MODEL[] = {"HDR", "AOV", "Temporal", 0};
+static const char* const OptiX_MODEL[] = {"LDR", "HDR", "AOV", "Temporal", "Temporal AOV", "Upscale (2x)", "Temporal Upscale (2x)", 0};
 
 class OptiXDenoiser {
     public:
@@ -41,6 +41,8 @@ class OptiXDenoiser {
         CUstream m_stream = 0;
         
         CUcontext m_cuCtx = nullptr;
+
+        CUdevice m_device = 0;
 
         CUdeviceptr m_dColor = 0;
         CUdeviceptr m_dOutput = 0;

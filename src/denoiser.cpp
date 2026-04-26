@@ -95,6 +95,13 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
     const int x0 = box.x();
     const int y0 = box.y();
 
+    bool isOptixUpscale =
+    #if OPTIX
+        (m_engine == 1) && (m_optix->model == 5 || m_optix->model == 6);
+    #else
+        false;
+    #endif
+
     const DD::Image::Box bounds = box;
     
     m_denoiserData.allocate(
@@ -102,7 +109,9 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
         m_height, 
         m_albedoConnected, 
         m_normalConnected, 
-        m_motionConnected);
+        m_motionConnected,
+        isOptixUpscale
+    );
 
     fetchPlaneToBuffer(&input0(), bounds, DD::Image::Mask_RGB, 3,
                         m_denoiserData.color(), m_width, m_height);
@@ -147,12 +156,16 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
 #endif
 
 #if !OIDN && !OPTIX
+
     std::memcpy(
         m_denoiserData.output(),
         m_denoiserData.color(),
-        m_width * m_height * 3 * sizeof(float)
+        m_denoiserData.outWidth() * m_denoiserData.outHeight() * 3 * sizeof(float)
     );
 #endif
+
+    std::cout << "About to write to image.." << std::endl;
+
 
     m_deviceDirty = false;
     m_filterDirty = false;
@@ -166,7 +179,12 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
         DD::Image::Channel::Chan_Green,
         DD::Image::Channel::Chan_Blue
     };
+
+    int h = m_denoiserData.outHeight();
+    int w = m_denoiserData.outWidth();
     
+    std::cout << "Writing to image.." << std::endl;
+
     for (int c = 0; c < 3; ++c)
     {
         const int chan = outputPlane.chanNo(rgb[c]);
@@ -175,12 +193,12 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
         
         const float* srcPtr = src + c;
 
-        for (unsigned int y = 0; y < m_height; ++y) 
+        for (unsigned int y = 0; y < h; ++y) 
         {
             int py = y0 + y;
-            const int srcRow = (m_height - 1 - y) * m_width * 3;
+            const int srcRow = (h - 1 - y) * w * 3;
 
-            for (unsigned int x = 0; x < m_width; ++x) 
+            for (unsigned int x = 0; x < w; ++x) 
             {
                 int px = x0 + x;
 
@@ -270,6 +288,11 @@ int CGDenoiser::knob_changed(DD::Image::Knob* k) {
 #if OPTIX
     const bool useOptix = (m_engine == 1);
 
+    if (k->is("optix_model")) {
+        std::cout << "[OptiX] Model changed!" << std::endl;
+        invalidate();
+    }
+
     if (auto* k1 = knob("optix_model")) k1->visible(useOptix);
     if (auto* k2 = knob("optix_blend")) k2->visible(useOptix);
 #endif
@@ -288,8 +311,9 @@ const char* CGDenoiser::input_label(int n, char*) const
     }
 }
 
-void CGDenoiser::_validate(bool) { 
-    copy_info(); 
+void CGDenoiser::_validate(bool for_real)
+{
+    copy_info();
 }
 
 void CGDenoiser::getRequests(
@@ -298,7 +322,7 @@ void CGDenoiser::getRequests(
     int count, 
     DD::Image::RequestOutput &reqData) const
 {
-    const DD::Image::Box fullBox = input0().info().box();
+    const DD::Image::Box fullBox = info().box();
 
     for (int i = 0; i < inputs(); ++i)
     {

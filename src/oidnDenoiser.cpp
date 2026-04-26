@@ -120,8 +120,8 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
     if (!data.valid())
         return;
 
-    const int w = data.width();
-    const int h = data.height();
+    const int w = data.inWidth();
+    const int h = data.inHeight();
 
     const bool hasAlbedo = data.hasAlbedo();
     const bool hasNormal = data.hasNormal();

@@ -2,10 +2,14 @@
 #include <algorithm>
 #include <cstring>
 
-void DenoiserData::allocate(int width, int height, 
-    bool needAlbedo, 
-    bool needNormal, 
-    bool needMotion)
+void DenoiserData::allocate(
+    int width,
+    int height,
+    bool needAlbedo,
+    bool needNormal,
+    bool needMotion,
+    bool upscale
+)
 {
     if (width <= 0 || height <= 0)
     {
@@ -13,37 +17,44 @@ void DenoiserData::allocate(int width, int height,
         return;
     }
 
-    const bool sameConfig = 
-        (m_width == width && m_height == height) &&
-        (needAlbedo == hasAlbedo()) &&
-        (needNormal == hasNormal()) &&
-        (needMotion == hasMotion());
+    const int outW = upscale ? width * 2 : width;
+    const int outH = upscale ? height * 2 : height;
+
+    const bool sameConfig =
+        (m_inWidth == width &&
+         m_inHeight == height &&
+         m_outWidth == outW &&
+         m_outHeight == outH &&
+         needAlbedo == hasAlbedo() &&
+         needNormal == hasNormal() &&
+         needMotion == hasMotion());
 
     if (sameConfig)
         return;
 
-    m_width = width;
-    m_height = height;
+    m_inWidth = width;
+    m_inHeight = height;
+    m_outWidth = outW;
+    m_outHeight = outH;
 
-    const size_t pixels = static_cast<size_t>(width) * height;
+    const size_t inPixels  = static_cast<size_t>(width) * height;
+    const size_t outPixels = static_cast<size_t>(outW) * outH;
 
-    m_colorBytes = pixels * 3 * sizeof(float);
-    m_motionBytes = pixels * 2 * sizeof(float);
+    m_colorBytes  = inPixels * 3 * sizeof(float);
+    m_motionBytes = inPixels * 2 * sizeof(float);
 
+    m_color.resize(inPixels * 3, 0.0f);
 
-    // Allocate color and output buffers (always needed)
-    m_color.resize(pixels * 3, 0.0f);
-    m_output.resize(pixels * 3, 0.0f);
+    m_output.resize(outPixels * 3, 0.0f);
 
-    // Allocate optional buffers
     if (needAlbedo)
-        m_albedo.resize(pixels * 3, 0.0f);
+        m_albedo.resize(inPixels * 3, 0.0f);
 
     if (needNormal)
-        m_normal.resize(pixels * 3, 0.0f);
+        m_normal.resize(inPixels * 3, 0.0f);
 
     if (needMotion)
-        m_motion.resize(pixels * 2, 0.0f);
+        m_motion.resize(inPixels * 2, 0.0f);
 }
 
 void DenoiserData::clear() noexcept
@@ -54,7 +65,7 @@ void DenoiserData::clear() noexcept
     m_motion.clear();
     m_output.clear();
 
-    m_width = m_height = 0;
+    m_inWidth = m_inHeight = m_outWidth = m_outHeight = 0;
     m_colorBytes = m_motionBytes = 0;
 }
 

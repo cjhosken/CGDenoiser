@@ -20,7 +20,8 @@ public:
     void allocate(int width, int height, 
         bool needAlbedo = false, 
         bool needNormal = false, 
-        bool needMotion = false
+        bool needMotion = false,
+        bool upscale = false
     );
 
     void clear() noexcept;
@@ -31,8 +32,10 @@ public:
     void setNormal(const float* data, size_t bytes);
     void setMotion(const float* data, size_t bytes);
 
-    int width() const noexcept { return m_width; }
-    int height() const noexcept { return m_height; }
+    int inWidth() const noexcept { return m_inWidth; }
+    int inHeight() const noexcept { return m_inHeight; }
+    int outWidth() const noexcept { return m_outWidth; }
+    int outHeight() const noexcept { return m_outHeight; }
 
     size_t colorBytes() const { return m_colorBytes; }
     size_t motionBytes() const { return m_motionBytes; }
@@ -52,19 +55,18 @@ public:
     float* output() noexcept { return m_output.data(); }
     const float* output() const noexcept { return m_output.data(); }
     
-
     // Status checks
     bool hasAlbedo() const noexcept { return !m_albedo.empty(); }
     bool hasNormal() const noexcept { return !m_normal.empty(); }
     bool hasMotion() const noexcept { return !m_motion.empty(); }
-    bool valid() const noexcept { return m_width > 0 && m_height > 0; }
+    bool valid() const noexcept { return m_inWidth > 0 && m_inHeight > 0; }
 
 private:
     void copyBuffer(std::vector<float>& dst, const float * src, size_t maxBytes);
 
 private:
-    int m_width = 0;
-    int m_height = 0;
+    int m_inWidth, m_inHeight;
+    int m_outWidth, m_outHeight;
 
     size_t m_colorBytes = 0;
     size_t m_motionBytes = 0;
