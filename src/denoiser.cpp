@@ -149,7 +149,13 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
 #endif
 
 #if OPTIX
-    if (m_engine == 1)
+    int target = 1;
+
+    #if !OIDN
+        target = 0;
+    #endif
+
+    if (m_engine == target)
     {
         m_optix->run(m_denoiserData, m_deviceDirty, m_filterDirty);
     }
@@ -286,7 +292,11 @@ int CGDenoiser::knob_changed(DD::Image::Knob* k) {
 #endif
 
 #if OPTIX
-    const bool useOptix = (m_engine == 1);
+    bool useOptix = (m_engine == 1);
+
+    #if !OIDN
+        useOptix = true;
+    #endif
 
     if (auto* k1 = knob("optix_model")) k1->visible(useOptix);
     if (auto* k2 = knob("optix_blend")) k2->visible(useOptix);
