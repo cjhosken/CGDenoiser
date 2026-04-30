@@ -135,6 +135,25 @@ install(
     OPTIONAL
 )
 
+if (ENABLE_OPTIX)
+    # Get CUDA toolkit path from CMake
+    get_target_property(CUDA_RUNTIME CUDA::cudart IMPORTED_LOCATION)
+
+    message(STATUS "TESTING: ${CUDA_RUNTIME}")
+
+    get_filename_component(CUDA_BIN_DIR "${CUDA_RUNTIME}" DIRECTORY)
+
+    file(GLOB CUDA_DLLS
+        "${CUDA_BIN_DIR}/../../bin/cudart64_*.dll"
+        "${CUDA_BIN_DIR}/../../nvrtc64_*.dll"
+    )
+
+    install(
+        FILES ${CUDA_DLLS}
+        DESTINATION "${PLUGIN_PACKAGE_DIR}"
+    )
+endif()
+
 install(
     DIRECTORY "${CMAKE_SOURCE_DIR}/lib/lib64/"
     DESTINATION "${PLUGIN_PACKAGE_DIR}"
@@ -148,5 +167,6 @@ install(
     DESTINATION "${PLUGIN_PACKAGE_DIR}"
     OPTIONAL
 )
+
 
 install(SCRIPT "${CMAKE_SOURCE_DIR}/cmake/install_nuke_plugin.cmake")
