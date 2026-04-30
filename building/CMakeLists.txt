@@ -18,7 +18,7 @@ option(ENABLE_HIP "Enable HIP backend" OFF)
 option(ENABLE_METAL "Enable Metal backend" OFF)
 
 set(OIDN_VERSION "2.4.1" CACHE STRING "OIDN version")
-set(OPTIX_VERSION "9.1.0" CACHE STRING "OptiX version")
+set(OPTIX_VERSION "9.0.0" CACHE STRING "OptiX version")
 set(TBB_VERSION "2021.13.0" CACHE STRING "TBB version")
 set(ISPC_VERSION "1.30.0" CACHE STRING "IPSC version")
 

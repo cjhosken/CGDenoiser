@@ -21,7 +21,7 @@ param(
     [switch]$no_metal,
 
     [string]$oidn_version = "2.4.1",
-    [string]$optix_version = "9.1.0",
+    [string]$optix_version = "9.0.0",
     [string]$tbb_version = "2021.13.0",
     [string]$ispc_version = "1.30.0",
 

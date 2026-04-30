@@ -137,7 +137,7 @@ void OptiXDenoiser::setupDenoiser(int w, int h) {
 
 }
 
-void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
+void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty, bool isAlbedo, bool isNormal, bool isMotion)
 {
     std::cout << "[OptiX] Rendering..." << std::endl;
 
@@ -145,6 +145,37 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
     m_deviceDirty = deviceDirty || m_deviceDirty;
     m_denoiserDirty = filterDirty || m_denoiserDirty;
+
+    bool needsRebuild =
+        (model != m_lastModel) ||
+        (isAlbedo != m_albedoConnected) ||
+        (isNormal != m_normalConnected) ||
+        (isMotion != m_motionConnected);
+
+    if (needsRebuild)
+    {
+        std::cout << "[OptiX] Rebuild triggered!\n"
+                  << "  Model: " << model << "\n"
+                  << "  Albedo: " << isAlbedo << "\n"
+                  << "  Normal: " << isNormal << "\n"
+                  << "  Motion: " << isMotion << std::endl;
+
+        m_denoiserDirty = true;
+
+        // Reset temporal history
+        m_hasPrev = false;
+
+        if (m_prevOutput)
+        {
+            cudaFree((void*)m_prevOutput);
+            m_prevOutput = 0;
+        }
+    }
+
+    m_lastModel      = model;
+    m_albedoConnected = isAlbedo;
+    m_normalConnected = isNormal;
+    m_motionConnected = isMotion;
 
     if (m_deviceDirty) {
         setupDevice();
@@ -291,7 +322,7 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
         guide.flow = flow;
 
 
-    bool isTemporal = (model == 2 || model == 3 || model == 4 || model == 6);
+    bool isTemporal = (model == 3 || model == 4);
 
     // ----------------------------
     // TEMPORAL FIX (CRITICAL)
@@ -315,15 +346,7 @@ void OptiXDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
         if (!m_hasPrev)
         {
-            // first frame: still pass valid struct, but empty history
             layer.previousOutput = {};
-            layer.previousOutput.data = 0;
-            layer.previousOutput.width = 0;
-            layer.previousOutput.height = 0;
-            layer.previousOutput.rowStrideInBytes = 0;
-            layer.previousOutput.pixelStrideInBytes = 0;
-            layer.previousOutput.format = OPTIX_PIXEL_FORMAT_FLOAT3;
-
             m_hasPrev = true;
         }
         else

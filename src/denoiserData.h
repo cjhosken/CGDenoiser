@@ -56,9 +56,9 @@ public:
     const float* output() const noexcept { return m_output.data(); }
     
     // Status checks
-    bool hasAlbedo() const noexcept { return !m_albedo.empty(); }
-    bool hasNormal() const noexcept { return !m_normal.empty(); }
-    bool hasMotion() const noexcept { return !m_motion.empty(); }
+    bool hasAlbedo() const noexcept { return m_hasAlbedo; }
+    bool hasNormal() const noexcept { return m_hasNormal; }
+    bool hasMotion() const noexcept { return m_hasMotion; }
     bool valid() const noexcept { return m_inWidth > 0 && m_inHeight > 0; }
 
 private:
@@ -76,6 +76,10 @@ private:
     std::vector<float> m_normal;     // RGB normal data (3 channels) - optional
     std::vector<float> m_motion;     // UV motion data (2 channels) - optional
     std::vector<float> m_output;     // RGB output data (3 channels)
+
+    bool m_hasAlbedo = false;
+    bool m_hasNormal = false;
+    bool m_hasMotion = false;
 };
 
 #endif // DENOISER_DATA_H

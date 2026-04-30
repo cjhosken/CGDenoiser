@@ -20,6 +20,10 @@ void DenoiserData::allocate(
     const int outW = upscale ? width * 2 : width;
     const int outH = upscale ? height * 2 : height;
 
+    m_hasAlbedo = needAlbedo;
+    m_hasNormal = needNormal;
+    m_hasMotion = needMotion;
+
     const bool sameConfig =
         (m_inWidth == width &&
          m_inHeight == height &&

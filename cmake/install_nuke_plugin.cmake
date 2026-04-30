@@ -22,7 +22,8 @@ endif()
 # 3. Read file safely
 file(READ "${INIT_FILE}" INIT_CONTENT)
 
-set(LINE "nuke.pluginAddPath(\"./CGDenoiser\")")
+
+set(LINE "import nuke\nnuke.pluginAddPath(\"./CGDenoiser\")")
 
 string(FIND "${INIT_CONTENT}" "${LINE}" FOUND)
 

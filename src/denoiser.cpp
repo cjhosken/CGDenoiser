@@ -65,13 +65,21 @@ namespace
 CGDenoiser::CGDenoiser(Node* node)
     : PlanarIop(node)
 {
-    inputs(4);
+
 
 #if OIDN
+    inputs(3);
+
     m_oidn = std::make_unique<OIDNDenoiser>();
 #endif
 
 #if OPTIX
+    #if !OIDN
+    inputs(4);
+    #endif
+
+    if (m_engine == 1) inputs(4);
+
     m_optix = std::make_unique<OptiXDenoiser>();
 #endif
 }
@@ -157,7 +165,7 @@ void CGDenoiser::renderStripe(DD::Image::ImagePlane& outputPlane)
 
     if (m_engine == target)
     {
-        m_optix->run(m_denoiserData, m_deviceDirty, m_filterDirty);
+        m_optix->run(m_denoiserData, m_deviceDirty, m_filterDirty, m_albedoConnected, m_normalConnected, m_motionConnected);
     }
 #endif
 
@@ -269,6 +277,9 @@ int CGDenoiser::knob_changed(DD::Image::Knob* k) {
 #if OIDN
     const bool useOIDN = (m_engine == 0);
 
+    if (useOIDN)
+        inputs(3);
+
     int filter = m_oidn->filter_type;
     if (auto fk = knob("oidn_filter"))
         filter = int(fk->get_value());
@@ -297,6 +308,9 @@ int CGDenoiser::knob_changed(DD::Image::Knob* k) {
     #if !OIDN
         useOptix = true;
     #endif
+
+    if (useOptix)
+        inputs(4);
 
     if (auto* k1 = knob("optix_model")) k1->visible(useOptix);
     if (auto* k2 = knob("optix_blend")) k2->visible(useOptix);

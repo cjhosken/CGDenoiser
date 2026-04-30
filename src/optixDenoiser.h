@@ -26,7 +26,7 @@ class OptiXDenoiser {
         OptiXDenoiser();
         ~OptiXDenoiser();
 
-        void run(DenoiserData& data, bool deviceDirty, bool filterDirty);
+        void run(DenoiserData& data, bool deviceDirty, bool filterDirty, bool isAlbedo, bool isNormal, bool isMotion);
 
         int model; // 0 = HDR; 1 = LDR; 2 = TEMPORAL
         float blend;
@@ -66,6 +66,11 @@ class OptiXDenoiser {
 
         bool m_initialized = false;
         bool m_hasPrev = false;
+
+        int  m_lastModel = -1;
+        bool m_albedoConnected = false;
+        bool m_normalConnected = false;
+        bool m_motionConnected = false;
 
 }; // OPTIXDENOISER_H
 

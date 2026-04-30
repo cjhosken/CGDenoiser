@@ -1,5 +1,6 @@
 param(
     [string]$nuke_dir = "",
+    [string]$cuda_dir = "",
     [string]$build_dir = "build",
     [string]$install_dir = "plugins",
 
@@ -104,6 +105,7 @@ cmake -S . -B $build_dir `
   -DSYCL="$($FLAGS["SYCL"]))" `
   -DMETAL="$($FLAGS["METAL"])" `
   -DHIP="$($FLAGS["HIP"])" `
+  -DCUDAToolkit_ROOT="$cuda_dir" `
   -Wno-dev
 
 if ($LASTEXITCODE -ne 0) {
