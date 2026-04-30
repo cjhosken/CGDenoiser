@@ -34,6 +34,7 @@ Designed for production workflows with support for auxiliary buffers such as **a
 
 - **Nuke 17.0v1**
 - **Nuke 16.0v2**
+- **Nuke 15.2v4**
 
 Other versions may be suported, however some manual fixing will be needed.
 
