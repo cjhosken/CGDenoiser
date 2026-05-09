@@ -132,7 +132,6 @@ if(ENABLE_OIDN)
             -DBUILD_SHARED_LIBS=ON
             -DOIDN_ARCH=DEFAULT
             -DOIDN_STATIC_LIB=OFF
-            -DOIDN_INSTALL_DEPENDENCIES=ON
             -Wno-dev
         DEPENDS ${CHAIN}
     )
