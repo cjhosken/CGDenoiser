@@ -43,35 +43,35 @@ $nuke_dir = (Resolve-Path $nuke_dir).Path
 # Defaults (match your intent)
 # -------------------------
 $FLAGS = @{
-  OPTIX = "OFF"
-  OIDN  = "ON"
-  CPU   = "ON"
-  CUDA  = "OFF"
-  SYCL  = "OFF"
-  HIP   = "OFF"
-  METAL = "OFF"
+  ENABLE_OPTIX = "OFF"
+  ENABLE_OIDN  = "ON"
+  ENABLE_CPU   = "ON"
+  ENABLE_CUDA  = "OFF"
+  ENABLE_SYCL  = "OFF"
+  ENABLE_HIP   = "OFF"
+  ENABLE_METAL = "OFF"
 }
 
-if ($optix)     { $FLAGS.OPTIX = "ON" }
-if ($no_optix)  { $FLAGS.OPTIX = "OFF" }
+if ($optix)     { $FLAGS.ENABLE_OPTIX = "ON" }
+if ($no_optix)  { $FLAGS.ENABLE_OPTIX = "OFF" }
 
-if ($oidn)      { $FLAGS.OIDN = "ON" }
-if ($no_oidn)   { $FLAGS.OIDN = "OFF" }
+if ($oidn)      { $FLAGS.ENABLE_OIDN = "ON" }
+if ($no_oidn)   { $FLAGS.ENABLE_OIDN = "OFF" }
 
-if ($cpu)       { $FLAGS.CPU = "ON" }
-if ($no_cpu)    { $FLAGS.CPU = "OFF" }
+if ($cpu)       { $FLAGS.ENABLE_CPU = "ON" }
+if ($no_cpu)    { $FLAGS.ENABLE_CPU = "OFF" }
 
-if ($cuda)      { $FLAGS.CUDA = "ON" }
-if ($no_cuda)   { $FLAGS.CUDA = "OFF" }
+if ($cuda)      { $FLAGS.ENABLE_CUDA = "ON" }
+if ($no_cuda)   { $FLAGS.ENABLE_CUDA = "OFF" }
 
-if ($sycl)      { $FLAGS.SYCL = "ON" }
-if ($no_sycl)   { $FLAGS.SYCL = "OFF" }
+if ($sycl)      { $FLAGS.ENABLE_SYCL = "ON" }
+if ($no_sycl)   { $FLAGS.ENABLE_SYCL = "OFF" }
 
-if ($hip)       { $FLAGS.HIP = "ON" }
-if ($no_hip)    { $FLAGS.HIP = "OFF" }
+if ($hip)       { $FLAGS.ENABLE_HIP = "ON" }
+if ($no_hip)    { $FLAGS.ENABLE_HIP = "OFF" }
 
-if ($metal)     { $FLAGS.METAL = "ON" }
-if ($no_metal)  { $FLAGS.METAL = "OFF" }
+if ($metal)     { $FLAGS.ENABLE_METAL = "ON" }
+if ($no_metal)  { $FLAGS.ENABLE_METAL = "OFF" }
 
 # -------------------------
 # Clean build dir
@@ -98,13 +98,13 @@ cmake -S . -B $build_dir `
   -Wno-dev `
   -DCMAKE_INSTALL_PREFIX="$install_dir" `
   -DNuke_ROOT="$nuke_dir" `
-  -DENABLE_OPTIX="$($FLAGS["OPTIX"])" `
-  -DENABLE_OIDN="$($FLAGS["OIDN"])" `
-  -DCPU="$($FLAGS["CPU"])" `
-  -DCUDA="$($FLAGS["CUDA"])" `
-  -DSYCL="$($FLAGS["SYCL"]))" `
-  -DMETAL="$($FLAGS["METAL"])" `
-  -DHIP="$($FLAGS["HIP"])" `
+  -DENABLE_OPTIX="$($FLAGS["ENABLE_OPTIX"])" `
+  -DENABLE_OIDN="$($FLAGS["ENABLE_OIDN"])" `
+  -DENABLE_CPU="$($FLAGS["ENABLE_CPU"])" `
+  -DENABLE_CUDA="$($FLAGS["ENABLE_CUDA"])" `
+  -DENABLE_SYCL="$($FLAGS["ENABLE_SYCL"])" `
+  -DENABLE_METAL="$($FLAGS["ENABLE_METAL"])" `
+  -DENABLE_HIP="$($FLAGS["ENABLE_HIP"])" `
   -DCUDAToolkit_ROOT="$cuda_dir" `
   -Wno-dev
 

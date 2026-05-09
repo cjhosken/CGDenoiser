@@ -46,31 +46,31 @@ else()
 endif()
 
 
-if (OIDN_CUDA)
+if (ENABLE_CUDA)
     target_compile_definitions(CGDenoiser PRIVATE OIDN_CUDA=1)
 else()
     target_compile_definitions(CGDenoiser PRIVATE OIDN_CUDA=0)
 endif()
 
-if (OIDN_SYCL)
+if (ENABLE_SYCL)
     target_compile_definitions(CGDenoiser PRIVATE OIDN_SYCL=1)
 else()
     target_compile_definitions(CGDenoiser PRIVATE OIDN_SYCL=0)
 endif()
 
-if (OIDN_HIP)
+if (ENABLE_HIP)
     target_compile_definitions(CGDenoiser PRIVATE OIDN_HIP=1)
 else()
     target_compile_definitions(CGDenoiser PRIVATE OIDN_HIP=0)
 endif()
 
-if (OIDN_METAL)
+if (ENABLE_METAL)
     target_compile_definitions(CGDenoiser PRIVATE OIDN_METAL=1)
 else()
     target_compile_definitions(CGDenoiser PRIVATE OIDN_METAL=0)
 endif()
 
-if (OIDN_CPU)
+if (ENABLE_CPU)
     target_compile_definitions(CGDenoiser PRIVATE OIDN_CPU=1)
 else()
     target_compile_definitions(CGDenoiser PRIVATE OIDN_CPU=0)
@@ -129,8 +129,6 @@ install(
         "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_core.dll"
         "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_device_cpu.dll"
         "${CMAKE_SOURCE_DIR}/lib/bin/tbb12.dll"
-        "${CMAKE_SOURCE_DIR}/lib/bin/tbbmalloc_proxy.dll"
-        "${CMAKE_SOURCE_DIR}/lib/bin/tbbmalloc.dll"
     DESTINATION "${PLUGIN_PACKAGE_DIR}"
     OPTIONAL
 )

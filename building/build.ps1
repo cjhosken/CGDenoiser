@@ -20,10 +20,10 @@ param(
     [switch]$metal,
     [switch]$no_metal,
 
-    [string]$oidn_version = "2.4.1",
+    [string]$oidn_version = "2.3.3",
     [string]$optix_version = "9.0.0",
     [string]$tbb_version = "2021.13.0",
-    [string]$ispc_version = "1.30.0",
+    [string]$ispc_version = "1.29.1",
 
     [string]$build_dir = "",
     [string]$install_dir = ""

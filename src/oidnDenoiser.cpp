@@ -7,6 +7,7 @@
 
 void OIDNDenoiser::setupDevice()
 {
+
     // Destroy EVERYTHING tied to previous device
     m_filter = {};
     m_colorBuffer = {};
@@ -16,41 +17,34 @@ void OIDNDenoiser::setupDevice()
     m_device = {};
 
     const std::vector<oidn::DeviceType> devices = {
-        oidn::DeviceType::Default
 #if OIDN_CPU
-        , oidn::DeviceType::CPU
+        oidn::DeviceType::CPU,
 #endif
 #if OIDN_CUDA
-        , oidn::DeviceType::CUDA
+        oidn::DeviceType::CUDA,
 #endif
 #if OIDN_HIP
-        , oidn::DeviceType::HIP
+        oidn::DeviceType::HIP,
 #endif
 #if OIDN_METAL
-        , oidn::DeviceType::METAL
+        oidn::DeviceType::METAL,
 #endif
 #if OIDN_SYCL
-        , oidn::DeviceType::SYCL
+        oidn::DeviceType::SYCL,
 #endif
     };
 
-    if (device_types < 0 || device_types >= static_cast<int>(devices.size()))
-    {
-        std::cerr << "[OIDN] Invalid device index, falling back to Default\n";
-        device_types = 0;
-    }
-
     m_device = oidn::newDevice(devices[device_types]);
 
-    m_device.setErrorFunction(
-        [](void*, oidn::Error code, const char* msg)
-        {
-            std::cerr << "[OIDN] (" << static_cast<int>(code) 
-                        << ") " << (msg ? msg : "") << "\n";
-        },
-        nullptr);
+    std::cout << kOIDNDevices[device_types] << std::endl;
+
+    std::cout << "Committing Device";
+
+    m_device.set("numThreads", 1);
 
     m_device.commit();
+
+    std::cout << "Commited Device";
 
     m_deviceDirty = false;
     m_filterDirty = true;
@@ -108,7 +102,6 @@ void OIDNDenoiser::setupFilter()
     }
 
     m_filter.set("cleanAux", filter_cleanAux);
-
     m_filter.commit();
 
     m_filterDirty = false;
@@ -117,6 +110,8 @@ void OIDNDenoiser::setupFilter()
 
 void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
     if (!data.valid())
         return;
 
@@ -183,8 +178,10 @@ void OIDNDenoiser::run(DenoiserData& data, bool deviceDirty, bool filterDirty)
 
         for (size_t i = 0; i < count; ++i)
         {
-            if (!std::isfinite(data[i]))
-                data[i] = 0.0f;
+            float& v = data[i];
+
+            if (!std::isfinite(v) || std::fabs(v) > 1e10f)
+                v = 0.0f;
         }
     };
 

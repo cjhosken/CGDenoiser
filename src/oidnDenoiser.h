@@ -1,12 +1,13 @@
 #ifndef OIDNDENOISER_H
 #define OIDNDENOISER_H
 
+#include <mutex>
 
 #include <OpenImageDenoise/oidn.hpp>
 #include "denoiserData.h"
 
+
 static const char* const kOIDNDevices[] = {
-    "Default", 
 #if OIDN_CPU
     "CPU", 
 #endif
@@ -57,6 +58,7 @@ class OIDNDenoiser {
         bool filter_directional = false; // RTLightmap only
 
     private:
+        std::mutex m_mutex;
 
         void rebuildDevice();
         void rebuildFilter();

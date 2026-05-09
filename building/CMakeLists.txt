@@ -20,7 +20,7 @@ option(ENABLE_METAL "Enable Metal backend" OFF)
 set(OIDN_VERSION "2.4.1" CACHE STRING "OIDN version")
 set(OPTIX_VERSION "9.0.0" CACHE STRING "OptiX version")
 set(TBB_VERSION "2021.13.0" CACHE STRING "TBB version")
-set(ISPC_VERSION "1.30.0" CACHE STRING "IPSC version")
+set(ISPC_VERSION "1.29.1" CACHE STRING "IPSC version")
 
 set(INSTALL_DIR "${CMAKE_SOURCE_DIR}/../lib" CACHE PATH "Install directory")
 
@@ -92,7 +92,6 @@ if(ENABLE_OIDN)
             -DCMAKE_BUILD_TYPE=Release
             -DCMAKE_PREFIX_PATH=<INSTALL_DIR>
             -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
             -DTBB_TEST=OFF
             -DTBB_STRICT=OFF
             -Wno-dev
@@ -124,18 +123,16 @@ if(ENABLE_OIDN)
             -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
             -DCMAKE_BUILD_TYPE=Release
 
-            -DOIDN_DEVICE_CPU=${ENABLE_CPU}
-            -DOIDN_DEVICE_CUDA=${ENABLE_CUDA}
+            -DOIDN_DEVICE_CPU:BOOL=${ENABLE_CPU}
+            -DOIDN_DEVICE_CUDA:BOOL=${ENABLE_CUDA}
             -DOIDN_DEVICE_SYCL:BOOL=${ENABLE_SYCL}
-            -DOIDN_DEVICE_HIP=${ENABLE_HIP}
-            -DOIDN_DEVICE_METAL=${ENABLE_METAL}
-
+            -DOIDN_DEVICE_HIP:BOOL=${ENABLE_HIP}
+            -DOIDN_DEVICE_METAL:BOOL=${ENABLE_METAL}
             -DOIDN_APPS=OFF
-
-            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
             -DBUILD_SHARED_LIBS=ON
             -DOIDN_ARCH=DEFAULT
             -DOIDN_STATIC_LIB=OFF
+            -DOIDN_INSTALL_DEPENDENCIES=ON
             -Wno-dev
         DEPENDS ${CHAIN}
     )

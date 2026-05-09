@@ -40,7 +40,7 @@ This compiles third-party libraries (OIDN, etc.).
 ### Windows
 
 ```bash
-building/build.bat
+powershell -ExecutionPolicy Bypass -File .\building\build.ps1
 ```
 
 ### Linux / macOS
@@ -74,7 +74,7 @@ install.sh --nuke-dir=/usr/local/Nuke13.2v5
 ### 🔹 Windows
 
 ```powershell
-install.ps1 -nuke_dir "C:\Program Files\Nuke13.2v5"
+powershell -ExecutionPolicy Bypass -File install.ps1 -nuke_dir "C:\Program Files\Nuke15.2v4"
 ```
 
 ---

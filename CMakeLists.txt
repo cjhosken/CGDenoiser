@@ -2,11 +2,11 @@ cmake_minimum_required(VERSION 3.23)
 
 option(ENABLE_OPTIX "Enable OptiX backend" OFF)
 option(ENABLE_OIDN "Enable OIDN backend" ON)
-option(CPU "Enable OpenImageDenoise CPU" ON)
-option(CUDA "Enable OpenImageDenoise CUDA" OFF)
-option(SYCL "Enable OpenImageDenoise SYCL" OFF)
-option(HIP "Enable OpenImageDenoise HIP" OFF)
-option(METAL "Enable OpenImageDenoise METAL" OFF)
+option(ENABLE_CPU "Enable OpenImageDenoise CPU" ON)
+option(ENABLE_CUDA "Enable OpenImageDenoise CUDA" OFF)
+option(ENABLE_SYCL "Enable OpenImageDenoise SYCL" OFF)
+option(ENABLE_HIP "Enable OpenImageDenoise HIP" OFF)
+option(ENABLE_METAL "Enable OpenImageDenoise METAL" OFF)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
@@ -27,7 +27,7 @@ IF(MSVC)
     add_definitions(-DNOMINMAX)
 ENDIF()
 
-set(CMAKE_MODULE_PATH "Cmake;{CMAKE_MODULE_PATH};${CMAKE_SOURCE_DIR}/cmake/Modules")
+set(CMAKE_MODULE_PATH "Cmake;${CMAKE_MODULE_PATH};${CMAKE_SOURCE_DIR}/cmake/Modules")
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/lib")
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
