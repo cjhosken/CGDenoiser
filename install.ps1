@@ -95,8 +95,8 @@ $env:CMAKE_BUILD_PARALLEL_LEVEL = $jobs
 # Configure
 # -------------------------
 cmake -S . -B $build_dir `
-  -Wno-dev `
   -DCMAKE_INSTALL_PREFIX="$install_dir" `
+  -DCMAKE_BUILD_TYPE=Release `
   -DNuke_ROOT="$nuke_dir" `
   -DENABLE_OPTIX="$($FLAGS["ENABLE_OPTIX"])" `
   -DENABLE_OIDN="$($FLAGS["ENABLE_OIDN"])" `

@@ -9,12 +9,13 @@ void OIDNDenoiser::setupDevice()
 {
 
     // Destroy EVERYTHING tied to previous device
-    m_filter = {};
-    m_colorBuffer = {};
-    m_outputBuffer = {};
-    m_albedoBuffer = {};
-    m_normalBuffer = {};
-    m_device = {};
+    m_filter = oidn::FilterRef{};   // destroy filter FIRST
+    m_colorBuffer = nullptr;
+    m_outputBuffer = nullptr;
+    m_albedoBuffer = nullptr;
+    m_normalBuffer = nullptr;
+
+    m_device = oidn::DeviceRef{};   // destroy LAST
 
     const std::vector<oidn::DeviceType> devices = {
 #if OIDN_CPU
@@ -34,17 +35,21 @@ void OIDNDenoiser::setupDevice()
 #endif
     };
 
-    m_device = oidn::newDevice(devices[device_types]);
+    std::cout << "Before OIDN device creation\n";
 
-    std::cout << kOIDNDevices[device_types] << std::endl;
+    auto dev = devices[device_types];
 
-    std::cout << "Committing Device";
+    std::cout << "Device enum OK: " << (int)device_types << "\n";
+
+    m_device = oidn::newDevice(dev);
+
+    std::cout << "After OIDN device creation\n";
 
     m_device.set("numThreads", 1);
 
     m_device.commit();
 
-    std::cout << "Commited Device";
+    std::cout << "[OIDN] Committed Device!";
 
     m_deviceDirty = false;
     m_filterDirty = true;
