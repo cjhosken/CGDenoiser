@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.5)
 
 option(ENABLE_OPTIX "Enable OptiX backend" OFF)
 option(ENABLE_OIDN "Enable OIDN backend" ON)
