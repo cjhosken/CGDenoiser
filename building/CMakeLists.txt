@@ -50,6 +50,31 @@ if(ENABLE_METAL AND NOT APPLE)
 endif()
 
 
+### Code Provided by Saechs (https://github.com/cjhosken/CGDenoiser/issues/7)
+if (WIN32)
+    find_program(GIT_EXECUTABLE git)
+    
+    if (GIT_EXECUTABLE)
+        message(STATUS "Configuring Git for long paths...")
+        
+        # Note: We use --global so that it applies to all clones performed by ExternalProject
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} config --global core.longpaths true
+            RESULT_VARIABLE GIT_CONFIG_RESULT
+            ERROR_VARIABLE GIT_CONFIG_ERROR
+        )
+
+        if (NOT GIT_CONFIG_RESULT EQUAL 0)
+            message(WARNING "Failed to set git core.longpaths: ${GIT_CONFIG_ERROR}")
+        else()
+            message(STATUS "Git longpaths enabled successfully.")
+        endif()
+    else()
+        message(WARNING "Git not found; could not enable core.longpaths.")
+    endif()
+endif()
+# -------------------------------------
+
 if(ENABLE_OIDN)
 
     if (WIN32)
