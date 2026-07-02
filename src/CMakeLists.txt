@@ -129,6 +129,10 @@ install(
         "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_core.dll"
         "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_device_cpu.dll"
         "${CMAKE_SOURCE_DIR}/lib/bin/tbb12.dll"
+        "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise.so"
+        "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_core.so"
+        "${CMAKE_SOURCE_DIR}/lib/bin/OpenImageDenoise_device_cpu.so"
+        "${CMAKE_SOURCE_DIR}/lib/bin/tbb12.so"
     DESTINATION "${PLUGIN_PACKAGE_DIR}"
     OPTIONAL
 )
@@ -141,22 +145,24 @@ if (ENABLE_OPTIX)
 
     get_filename_component(CUDA_BIN_DIR "${CUDA_RUNTIME}" DIRECTORY)
 
-    file(GLOB CUDA_DLLS
-        "${CUDA_BIN_DIR}/../../bin/cudart64_*.dll"
-        "${CUDA_BIN_DIR}/../../nvrtc64_*.dll"
-    )
-
+    if (WIN32)
+        file(GLOB CUDA_LIBS
+            "${CUDA_BIN_DIR}/../../bin/cudart64_*.dll"
+            "${CUDA_BIN_DIR}/../../nvrtc64_*.dll"
+        )
+    else()
+        file(GLOB CUDA_LIBS
+            "${CUDA_BIN_DIR}/../../bin/cudart64_*.so"
+            "${CUDA_BIN_DIR}/../../nvrtc64_*.so"
+        )
+    endif()
+    
     install(
-        FILES ${CUDA_DLLS}
+        FILES ${CUDA_LIBS}
         DESTINATION "${PLUGIN_PACKAGE_DIR}"
     )
-endif()
 
-install(
-    DIRECTORY "${CMAKE_SOURCE_DIR}/lib/lib64/"
-    DESTINATION "${PLUGIN_PACKAGE_DIR}"
-    FILES_MATCHING PATTERN "*.so*"
-)
+endif()
 
 install(
     FILES 
